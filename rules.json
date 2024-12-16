@@ -1,0 +1,34 @@
+[
+	{
+		"id": 1,
+		"priority": 1,
+		"action": {
+			"type": "modifyHeaders",
+			"responseHeaders": [
+				{
+					"header": "Access-Control-Allow-Origin",
+					"operation": "set",
+					"value": "*"
+				}
+			]
+		},
+		"condition": {
+			"urlFilter": "||pximg.net",
+			"resourceTypes": ["xmlhttprequest", "image"]
+		}
+	},
+	{
+		"id": 2,
+		"priority": 1,
+		"action": {
+			"type": "redirect",
+			"redirect": {
+				"regexSubstitution": "https://www.pixiv.net/en/users/\\1/illustrations"
+			}
+		},
+		"condition": {
+			"regexFilter": "^https://www\\.pixiv\\.net/en/users/(\\d+)$",
+			"resourceTypes": ["main_frame"]
+		}
+	}
+]

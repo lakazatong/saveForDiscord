@@ -1,0 +1,53 @@
+{
+	"manifest_version": 3,
+	"name": "Save for Discord",
+	"version": "1.0",
+	"description": "Add a 'Save for Discord' right-click menu button that saves the pixiv image under 10MB as PNG. ",
+	"icons": {
+		"16": "icons/16.png",
+		"32": "icons/32.png",
+		"48": "icons/48.png",
+		"128": "icons/128.png"
+	},
+	"background": {
+		"service_worker": "background.js"
+	},
+	"permissions": [
+		"tabs",
+		"contextMenus",
+		"downloads",
+		"downloads.shelf",
+		"downloads.open",
+		"storage",
+		"webRequest",
+		"declarativeNetRequest",
+		"declarativeNetRequestWithHostAccess",
+		"activeTab",
+		"scripting",
+		"webNavigation"
+	],
+	"host_permissions": [
+		"*://www.pixiv.net/*",
+		"*://*.pximg.net/*",
+		"*://*.pixiv.cat/*"
+	],
+	"declarative_net_request": {
+		"rule_resources": [
+			{
+				"id": "ruleset_1",
+				"enabled": true,
+				"path": "rules.json"
+			}
+		]
+	},
+	"content_scripts": [
+		{
+			"js": ["common.js", "monitor.js"],
+			"matches": ["*://www.pixiv.net/*"],
+			"run_at": "document_start"
+		}
+	],
+	"content_security_policy": {
+		"script-src": "'self' 'unsafe-eval'; object-src 'self'"
+	}
+}
