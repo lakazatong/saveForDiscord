@@ -2,7 +2,7 @@
 	"manifest_version": 3,
 	"name": "Save for Discord",
 	"version": "1.0",
-	"description": "Add a 'Save for Discord' right-click menu button that saves the pixiv image under 10MB as PNG. ",
+	"description": "Add a 'Save for Discord' right-click menu button that saves the pixiv image under 10MB as PNG",
 	"icons": {
 		"16": "icons/16.png",
 		"32": "icons/32.png",
