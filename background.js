@@ -41,8 +41,9 @@ function inject(tabId, files) {
 	chrome.scripting.executeScript({ target: { tabId }, files });
 }
 
-function historyMatch(history, histories) {
-	for (const h of histories) {
+function historyExactMatch(history, histories) {
+	for (let index = 0; index < histories.length; index++) {
+		const h = histories[index];
 		if (history.length < h.length) {
 			continue;
 		}
@@ -50,7 +51,8 @@ function historyMatch(history, histories) {
 		for (let i = 0; i < h.length; i++) {
 			const historyIndex = history.length - h.length + i;
 			for (const key in h[i]) {
-				if (h[i][key] !== null && h[i][key] !== history[historyIndex][key]) {
+				const cur = history[historyIndex][key];
+				if (cur === undefined || (h[i][key] !== null && h[i][key] !== cur)) {
 					match = false;
 					break;
 				}
@@ -60,60 +62,153 @@ function historyMatch(history, histories) {
 			}
 		}
 		if (match) {
-			// console.log('changeInfo history match found', history.slice(-h.length));
-			return true;
+			return index;
+		}
+	}
+	return -1;
+}
+function historyLooseMatch(history) {
+	let state = 0;
+	for (const entry of history) {
+		if (state === 0 && entry.status === 'loading' && entry.url) {
+			state = 1; // Found the first "loading, url"
+		} else if (state === 1 && entry.status === 'loading') {
+			state = 2; // Found the second "loading"
+		} else if (state >= 1 && entry.status === 'complete') {
+			return true; // Found a "complete" after the relevant sequence
 		}
 	}
 	return false;
 }
 
-// changeInfo history in these cases in order:
-// new page, refresh, from https://www.pixiv.net/en/*
+// changeInfo histories in the mentioned orders
 // a value of null means it can match anything, as long as the key is there
-
 [
-	['pixiv.js', /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/, [
+	['pixiv.js', /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/, [], [
+		// new page
 		[
 			{status: 'loading', url: null},
 			{favIconUrl: null},
 			{title: null},
 			{status: 'loading'},
-			{status: 'complete'}
+			{status: 'complete'},
 		],
+		// new page from refresh
+		[
+			{status: 'loading', url: null},
+			{favIconUrl: null},
+			{status: 'loading'},
+			{status: 'complete'},
+		],
+		// refresh1
 		[
 			{status: 'loading', url: null},
 			{status: 'complete'},
 			{favIconUrl: null},
-			{title: null}
+			{title: null},
 		],
+		// refresh2
+		[
+			{status: 'loading'},
+			{favIconUrl: null},
+			{status: 'complete'},
+		],
+		// from https://www.pixiv.net/en/*
 		[
 			{status: 'loading', url: null},
 			{favIconUrl: null},
-			{status: 'complete'}
+			{status: 'complete'},
 		]
 	]],
-	['twitter.js', /^https:\/\/x\.com\/\w+\/media$/, [
+	['twitter.js', /^https:\/\/x\.com\/\w+\/media$/, [], [
+		// new page
 		[
-
+			{status: 'loading', url: null},
+			{favIconUrl: null},
+			{status: 'loading'},
+			{status: 'complete'},
+			{favIconUrl: null},
+			{title: null},
+			{title: null},
 		],
+		// new page from refresh
 		[
-
+			{status: 'loading', url: null},
+			{favIconUrl: null},
+			{status: 'loading'},
+			{title: null},
+			{status: 'complete'},
+			{favIconUrl: null},
+			{title: null},
+			{title: null},
 		],
+		// refresh1
 		[
-
+			{status: 'loading'},
+			{favIconUrl: null},
+			{title: null},
+			{status: 'complete'},
+			{title: null},
+			{favIconUrl: null},
+		],
+		// refresh2
+		[
+			{status: 'loading'},
+			{favIconUrl: null},
+			{title: null},
+			{title: null},
+			{status: 'complete'},
+			{title: null},
+			{favIconUrl: null},
+		],
+		// refresh3
+		[
+			{status: 'loading'},
+			{favIconUrl: null},
+			{title: null},
+			{status: 'complete'},
+			{favIconUrl: null},
+			{title: null},
+		],
+		// refresh4
+		[
+			{status: 'loading'},
+			{favIconUrl: null},
+			{title: null},
+			{title: null},
+			{status: 'complete'},
+			{favIconUrl: null},
+			{title: null},
+		],
+		// from https://x.com/*
+		[
+			{status: 'loading', url: null},
+			{status: 'complete'},
+			{favIconUrl: null},
+			{title: null},
 		]
 	]]
-].forEach(([script, regex, histories]) => {
+].forEach(([script, regex, debounceCooldowns, histories]) => {
+	let timer;
 	const history = [];
 	const minHistoryLength = Math.min(...histories.map(h => h.length));
 	const maxHistoryLength = Math.max(...histories.map(h => h.length));
+	histories.sort((a, b) => b.length - a.length);
 	chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
 		if (!regex.test(tab.url)) { return; }
 		history.push(changeInfo);
+		// console.log(changeInfo);
 		if (history.length < minHistoryLength) { return; }
 		while (history.length > maxHistoryLength) { history.shift(); }
-		if (historyMatch(history, histories)) { inject(tabId, [script]); }
-	})	
+		const index = historyExactMatch(history, histories);
+		if (index >= 0) {
+		// 	console.log(tab.url, index, [...history]);
+		// 	clearTimeout(timer);
+		// 	timer = setTimeout(() => {
+				inject(tabId, [script]);
+		// 	}, debounceCooldowns[index]);
+		}
+	})
 });
 
 // Relay monitor messages

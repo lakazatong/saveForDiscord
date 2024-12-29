@@ -91,8 +91,102 @@ function setFilter(currentFilter, filterType, value) {
 	}
 }
 
+function getElementByXPath(doc, xpath) {
+	const result = doc.evaluate(xpath, doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+	return result;
+}
+
+function getElementsByXPath(doc, xpath) {
+	const result = [];
+	const iterator = doc.evaluate(xpath, doc, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+	let node = iterator.iterateNext();
+	while (node) {
+		result.push(node);
+		node = iterator.iterateNext();
+	}
+	return result;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 	if (msg.request === 'saveForDiscord') {
 		downloadImage(msg.url, getFilenameFromUrl(msg.url), true);
 	}
 });
+
+function getDocumentReady() {
+	return this.readyState === 'complete';
+}
+
+function getStartObserver(givenGet, check, callback) {
+	const documentReady = getDocumentReady.bind(this);
+	function get() {
+		return documentReady() ? givenGet() : null;
+	}
+
+	let e = get();
+
+	if (e) {
+		callback(e);
+		return;
+	}
+
+	const observer = new MutationObserver((mutationsList, obs) => {
+		for (let mutation of mutationsList) {
+			if (!(mutation.target instanceof HTMLElement)) {
+				continue;
+			}
+
+			if (mutation.type === 'childList') {
+				mutation.addedNodes.forEach(node => {
+					if (node instanceof HTMLElement && check(node)) {
+						e = node;
+					}
+				});
+			} else if (mutation.type === 'attributes' || mutation.type === 'characterData') {
+				if (check(mutation.target)) {
+					e = mutation.target;
+				}
+			}
+		}
+
+		e = e ?? get();
+		if (e) {
+			callback(e);
+			obs.disconnect();
+		}
+	});
+
+	observer.observe(this.body, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		characterData: true,
+	});
+}
+
+function softRemove(e) {
+	if (!e) return;
+	e.style.display = 'none';
+}
+
+function observeElement(e, cb) {
+	console.log('observeElement started on ', e);
+	new MutationObserver(() => cb(e)).observe(e, {
+		attributes: true,
+		characterData: true,
+		childList: true,
+		subtree: true,
+	});
+}
+
+function getStartPersistantObserver(tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
+	const startObserver = getStartObserver.bind(this);
+	function runStartObserver() {
+		startObserver(
+			() => this.querySelector(`${tagName.toLowerCase()}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
+			e => e?.tagName === tagName && e?.getAttribute(attributeName) === attributeValue,
+			e => { callback(e); runStartObserver(); }
+		);
+	}
+	runStartObserver();
+}
