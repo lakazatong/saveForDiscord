@@ -291,7 +291,7 @@
 
 	// Injection logic
 
-	function injectionLogic() {
+	function pixivArtworksCallback() {
 		console.log('pixiv');
 		startShowAllObserver();
 	}
@@ -301,12 +301,14 @@
 	if (!pixivScriptInit) {
 		chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 			if (msg.request === 'pixivArtworks') {
-				injectionLogic();
+				documentReady = getDocumentReady.bind(document);
+				pixivArtworksCallback();
 			}
 		});
 		pixivScriptInit = true;
 	}
 
-	injectionLogic();
+	documentReady = getDocumentReady.bind(document);
+	pixivArtworksCallback();
 
 })();

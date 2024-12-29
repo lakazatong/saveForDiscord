@@ -81,6 +81,13 @@ let twitterScriptInit = false;
 
 // Utils
 
+function getDocumentReady() {
+	return this.readyState === 'complete';
+}
+
+// current documentReady bound with the current document
+let documentReady = getDocumentReady.bind(document);
+
 function setFilter(currentFilter, filterType, value) {
 	currentFilter = currentFilter || '';
 	const regex = new RegExp(`${filterType}\\([^)]*\\)`, 'g');
@@ -113,12 +120,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 	}
 });
 
-function getDocumentReady() {
-	return this.readyState === 'complete';
-}
-
-function getStartObserver(givenGet, check, callback) {
-	const documentReady = getDocumentReady.bind(this);
+function startObserver(root, givenGet, check, callback) {
 	function get() {
 		return documentReady() ? givenGet() : null;
 	}
@@ -156,7 +158,64 @@ function getStartObserver(givenGet, check, callback) {
 		}
 	});
 
-	observer.observe(this.body, {
+	observer.observe(root, {
+		childList: true,
+		subtree: true,
+		attributes: true,
+		characterData: true,
+	});
+}
+
+// querySelector is cursed af
+// function startSimpleObserver(root, selector, callback) {
+// 	function get() {
+// 		return documentReady() ? root.querySelector(selector) : null;
+// 	}
+
+// 	let e = get();
+
+// 	if (e) {
+// 		callback(e);
+// 		return;
+// 	}
+
+// 	const observer = new MutationObserver((mutationsList, obs) => {
+// 		e = get();
+// 		if (e) {
+// 			callback(e);
+// 			obs.disconnect();
+// 		}
+// 	});
+
+// 	observer.observe(root, {
+// 		childList: true,
+// 		subtree: true,
+// 		attributes: true,
+// 		characterData: true,
+// 	});
+// }
+
+function startNthChildObserver(root, n, type, callback) {
+	function get() {
+		return documentReady() ? (Array.from(root.children).filter(child => child.tagName.toLowerCase() === type)[n - 1] || null) : null;
+	}
+
+	let e = get();
+
+	if (e) {
+		callback(e);
+		return;
+	}
+
+	const observer = new MutationObserver((mutationsList, obs) => {
+		e = get();
+		if (e) {
+			callback(e);
+			obs.disconnect();
+		}
+	});
+
+	observer.observe(root, {
 		childList: true,
 		subtree: true,
 		attributes: true,
@@ -179,14 +238,10 @@ function observeElement(e, cb) {
 	});
 }
 
-function getStartPersistantObserver(tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
-	const startObserver = getStartObserver.bind(this);
-	function runStartObserver() {
-		startObserver(
-			() => this.querySelector(`${tagName.toLowerCase()}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
-			e => e?.tagName === tagName && e?.getAttribute(attributeName) === attributeValue,
-			e => { callback(e); runStartObserver(); }
-		);
-	}
-	runStartObserver();
+function getStartAttributeObserver(tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
+	startObserver(this,
+		() => this.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
+		e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
+		callback
+	);
 }
