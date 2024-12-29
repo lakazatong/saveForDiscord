@@ -2,7 +2,7 @@
 
 (() => {
 
-// add SaveForDiscord buttons
+// Add SaveForDiscord buttons
 
 function buttonsMouseOver(b) {
 	return () => {
@@ -67,7 +67,6 @@ function addButtons(divs) {
 	if (!divs) {
 		divs = document.body.querySelectorAll('div[role="presentation"]');
 	}
-	// console.log('adding buttons to ', divs);
 	for (let i = 1; i < divs.length; i++) {
 		enabledButtons.push(null);
 		buttons.push([]);
@@ -149,7 +148,7 @@ function startPresentationDivsObserver(threshold) {
 	.observe(document.body, { childList: true, subtree: true });
 }
 
-// click on the Show all button as soon as it's found
+// Clicks on the Show all button as soon as it's found
 
 function documentReady() {
 	return document.readyState === 'complete';
@@ -219,7 +218,7 @@ function startShowAllObserver() {
 	});
 }
 
-// trigger save logic
+// Trigger save logic
 
 async function sendImages() {
 	let pendingRequests = enabledButtons.filter(b => b).length;
@@ -271,7 +270,7 @@ async function sendImages() {
 async function sendPutImgsRequest(channelAlias, imgPaths, message) {
 	const url = new URL('http://localhost:3000/api/private/put_imgs');
 	url.search = new URLSearchParams({channelAlias, imgPaths, message }).toString();
-	console.log('GET', url);
+	// console.log('GET', url);
 	try {
 		const response = await fetch(url, { method: 'GET' });
 		return response.ok ? await response.text() : null;
@@ -345,82 +344,23 @@ function addStickyButton() {
 	document.body.appendChild(stickyButton);
 }
 
-// save logic
+// Injection logic
 
-function replaceExtensionWithPng(filename) {
-	const parts = filename.split('.');
-	parts[parts.length - 1] = 'png';
-	return parts.join('.');
+function injectionLogic() {
+	startShowAllObserver();
 }
 
-function getFilenameFromUrl(url) {
-	const urlParts = url.split('/');
-	return replaceExtensionWithPng(urlParts[urlParts.length - 1]);
-}
-
-async function downloadImage(url, filename, compress) {
-	return new Promise((resolve, reject) => {
-		if (!url) {
-			console.error("downloadImage failed: url = ", url);
-			return reject();
-		}
-		let xhr = new XMLHttpRequest();
-		xhr.open('GET', url, true);
-		xhr.responseType = 'blob';
-
-		xhr.onload = async () => {
-			console.log("image downloaded");
-			await saveImageAsPng(xhr.response, filename, compress);
-			resolve();
-		};
-
-		xhr.onerror = () => {
-			console.error("downloadImage failed: url = ", url);
-			reject();
-		};
-
-		console.log("downloading image...");
-		xhr.send();
-	});
-}
-
-async function saveImageAsPng(blob, filename, compress) {
-	if (compress && blob.size >= 10 * 1024 * 1024) {
-		saveFile(await imageConversion.compressAccurately(blob, 10*1024), filename);
-	} else {
-		saveFile(blob, filename);
-	}
-}
-
-function saveFile(blob, filename) {
-	try {
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	} catch (err) {
-		console.error("saveFile failed:", err);
-	}
-}
+// Script init
 
 if (!pixivScriptInit) {
 	chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-		if (msg.request === 'saveForDiscord') {
-			downloadImage(msg.url, getFilenameFromUrl(msg.url), true);
-		} else if (msg.request === 'startShowAllObserver') {
-			console.log('startShowAllObserver received');
-			startShowAllObserver();
-		} else if (msg.request === 'addButtons') {
-			addButtons();
+		if (msg.request === 'pixivArtworks') {
+			injectionLogic();
 		}
 	});
 	pixivScriptInit = true;
 }
 
-startShowAllObserver();
+injectionLogic();
 
 })();

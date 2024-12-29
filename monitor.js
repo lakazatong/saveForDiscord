@@ -2,7 +2,10 @@
 
 (() => {
 
-const artworksRegex = /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/;
+const regexes = [
+	{ name: 'pixivArtworks', regex: /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/ },
+	{ name: 'twitterMedia', regex: /^https:\/\/x\.com\/\w+\/media$/ }
+];
 let lastUrl;
 let updateTimeout;
 
@@ -11,19 +14,18 @@ function update() {
 	if (url === lastUrl) {
 		return;
 	}
-	
+
 	lastUrl = url;
-	
-	if (!artworksRegex.test(url)) {
-		return;
+
+	for (const { name, regex } of regexes) {
+		if (regex.test(url)) {
+			chrome.runtime.sendMessage({ request: name });
+			return;
+		}
 	}
-	
-	console.log('startShowAllObserver sent');
-	chrome.runtime.sendMessage({ request: 'startShowAllObserver' });
 }
 
 window.addEventListener('popstate', function (event) {
-	console.log(event);
 	if (updateTimeout) {
 		clearTimeout(updateTimeout);
 	}
