@@ -23,6 +23,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 	}
 });
 
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+	if (msg.request === 'saveForDiscord') {
+		downloadImage(msg.url, getFilenameFromUrl(msg.url), true);
+	}
+});
+
 // Redirect /users to /users/illustrations
 
 const pixivUsersRegex = /^https:\/\/www\.pixiv\.net\/en\/users\/(\d+)$/;
@@ -62,11 +68,13 @@ function historyExactMatch(history, histories) {
 			}
 		}
 		if (match) {
+			console.log(`match between:\nHistory: ${JSON.stringify(history.slice(history.length - h.length))}\nPattern: ${JSON.stringify(h)}`);
 			return index;
 		}
 	}
 	return -1;
 }
+
 function historyLooseMatch(history) {
 	let state = 0;
 	for (const entry of history) {
@@ -84,7 +92,7 @@ function historyLooseMatch(history) {
 // changeInfo histories in the mentioned orders
 // a value of null means it can match anything, as long as the key is there
 [
-	['pixiv.js', /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/, [], [
+	['pixiv.js', /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/, [
 		// new page
 		[
 			{status: 'loading', url: null},
@@ -100,14 +108,14 @@ function historyLooseMatch(history) {
 			{status: 'loading'},
 			{status: 'complete'},
 		],
-		// refresh1
+		// refresh 1
 		[
 			{status: 'loading', url: null},
 			{status: 'complete'},
 			{favIconUrl: null},
 			{title: null},
 		],
-		// refresh2
+		// refresh 2
 		[
 			{status: 'loading'},
 			{favIconUrl: null},
@@ -120,8 +128,8 @@ function historyLooseMatch(history) {
 			{status: 'complete'},
 		]
 	]],
-	['twitter.js', /^https:\/\/x\.com\/\w+\/media$/, [], [
-		// new page
+	['twitter.js', /^https:\/\/x\.com\/\w+/, [
+		// new page 1
 		[
 			{status: 'loading', url: null},
 			{favIconUrl: null},
@@ -130,6 +138,16 @@ function historyLooseMatch(history) {
 			{favIconUrl: null},
 			{title: null},
 			{title: null},
+		],
+		// new page 2
+		[
+			{status: 'loading', url: null},
+			{favIconUrl: null},
+			{status: 'loading'},
+			{status: 'complete'},
+			{title: null},
+			{title: null},
+			{favIconUrl: null},
 		],
 		// new page from refresh
 		[
@@ -142,7 +160,7 @@ function historyLooseMatch(history) {
 			{title: null},
 			{title: null},
 		],
-		// refresh1
+		// refresh 1
 		[
 			{status: 'loading'},
 			{favIconUrl: null},
@@ -151,7 +169,7 @@ function historyLooseMatch(history) {
 			{title: null},
 			{favIconUrl: null},
 		],
-		// refresh2
+		// refresh 2
 		[
 			{status: 'loading'},
 			{favIconUrl: null},
@@ -161,7 +179,7 @@ function historyLooseMatch(history) {
 			{title: null},
 			{favIconUrl: null},
 		],
-		// refresh3
+		// refresh 3
 		[
 			{status: 'loading'},
 			{favIconUrl: null},
@@ -170,7 +188,7 @@ function historyLooseMatch(history) {
 			{favIconUrl: null},
 			{title: null},
 		],
-		// refresh4
+		// refresh 4
 		[
 			{status: 'loading'},
 			{favIconUrl: null},
@@ -180,15 +198,26 @@ function historyLooseMatch(history) {
 			{favIconUrl: null},
 			{title: null},
 		],
-		// from https://x.com/*
+		// refresh 5
 		[
-			{status: 'loading', url: null},
-			{status: 'complete'},
+			{status: 'loading'},
 			{favIconUrl: null},
 			{title: null},
-		]
+			{status: 'complete'},
+			{title: null},
+			{title: null},
+			{title: null},
+			{title: null},
+		],
+		// // from https://x.com/*
+		// [
+		// 	{status: 'loading', url: null},
+		// 	{status: 'complete'},
+		// 	{favIconUrl: null},
+		// 	{title: null},
+		// ]
 	]]
-].forEach(([script, regex, debounceCooldowns, histories]) => {
+].forEach(([script, regex, histories]) => {
 	let timer;
 	const history = [];
 	const minHistoryLength = Math.min(...histories.map(h => h.length));
@@ -197,16 +226,12 @@ function historyLooseMatch(history) {
 	chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
 		if (!regex.test(tab.url)) { return; }
 		history.push(changeInfo);
-		// console.log(changeInfo);
+		console.log(changeInfo);
 		if (history.length < minHistoryLength) { return; }
 		while (history.length > maxHistoryLength) { history.shift(); }
 		const index = historyExactMatch(history, histories);
 		if (index >= 0) {
-		// 	console.log(tab.url, index, [...history]);
-		// 	clearTimeout(timer);
-		// 	timer = setTimeout(() => {
-				inject(tabId, [script]);
-		// 	}, debounceCooldowns[index]);
+			inject(tabId, [script]);
 		}
 	})
 });

@@ -88,6 +88,16 @@ function getDocumentReady() {
 // current documentReady bound with the current document
 let documentReady = getDocumentReady.bind(document);
 
+function softRemove(e) {
+	if (!e) return;
+	e.style.display = 'none';
+}
+
+function persistentSoftRemove(element) {
+	if (!element) return;
+	observeElementChanges(element, softRemove);
+}
+
 function setFilter(currentFilter, filterType, value) {
 	currentFilter = currentFilter || '';
 	const regex = new RegExp(`${filterType}\\([^)]*\\)`, 'g');
@@ -113,12 +123,6 @@ function getElementsByXPath(doc, xpath) {
 	}
 	return result;
 }
-
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-	if (msg.request === 'saveForDiscord') {
-		downloadImage(msg.url, getFilenameFromUrl(msg.url), true);
-	}
-});
 
 function startObserver(root, givenGet, check, callback) {
 	function get() {
@@ -166,82 +170,77 @@ function startObserver(root, givenGet, check, callback) {
 	});
 }
 
-// querySelector is cursed af
-// function startSimpleObserver(root, selector, callback) {
-// 	function get() {
-// 		return documentReady() ? root.querySelector(selector) : null;
-// 	}
+function getStartObserver(doc) {
+	return function (givenGet, check, callback) {
+		startObserver(doc, givenGet, check, callback);
+	};
+}
 
-// 	let e = get();
+function getStartAttributeObserver(doc) {
+	return function (tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
+		startObserver(doc,
+			() => doc.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
+			e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
+			callback
+		);
+	};
+}
 
-// 	if (e) {
-// 		callback(e);
-// 		return;
-// 	}
+function observeNthChild(root, indices, callback) {
+	if (!Array.isArray(indices)) indices = [indices];
 
-// 	const observer = new MutationObserver((mutationsList, obs) => {
-// 		e = get();
-// 		if (e) {
-// 			callback(e);
-// 			obs.disconnect();
-// 		}
-// 	});
+	const [currentIndex, ...remainingIndices] = indices;
 
-// 	observer.observe(root, {
-// 		childList: true,
-// 		subtree: true,
-// 		attributes: true,
-// 		characterData: true,
-// 	});
-// }
+	function observeSingleLevel(parent, index, nextStep) {
+		let children = Array.from(parent.children);
+		let target = children[index];
 
-function startNthChildObserver(root, n, type, callback) {
-	function get() {
-		return documentReady() ? (Array.from(root.children).filter(child => child.tagName.toLowerCase() === type)[n - 1] || null) : null;
-	}
-
-	let e = get();
-
-	if (e) {
-		callback(e);
-		return;
-	}
-
-	const observer = new MutationObserver((mutationsList, obs) => {
-		e = get();
-		if (e) {
-			callback(e);
-			obs.disconnect();
+		if (target) {
+			nextStep(target);
+			return;
 		}
+
+		const observer = new MutationObserver(() => {
+			children = Array.from(parent.children);
+			target = children[index];
+			if (target) {
+				observer.disconnect();
+				nextStep(target);
+			}
+		});
+
+		observer.observe(parent, { childList: true, subtree: false });
+	}
+
+	function traverse(parent, remainingIndices) {
+		if (!parent || remainingIndices.length === 0) {
+			callback(parent);
+			return;
+		}
+
+		observeSingleLevel(parent, remainingIndices[0], nextParent => {
+			traverse(nextParent, remainingIndices.slice(1));
+		});
+	}
+
+	traverse(root, indices);
+}
+
+function observeElementChanges(element, callback) {
+	if (!element) return;
+
+	const observer = new MutationObserver(() => {
+		callback(element);
 	});
 
-	observer.observe(root, {
+	observer.observe(element, {
+		attributes: true,
 		childList: true,
 		subtree: true,
-		attributes: true,
 		characterData: true,
 	});
-}
 
-function softRemove(e) {
-	if (!e) return;
-	e.style.display = 'none';
-}
+	callback(element);
 
-function observeElement(e, cb) {
-	console.log('observeElement started on ', e);
-	new MutationObserver(() => cb(e)).observe(e, {
-		attributes: true,
-		characterData: true,
-		childList: true,
-		subtree: true,
-	});
-}
-
-function getStartAttributeObserver(tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
-	startObserver(this,
-		() => this.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
-		e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
-		callback
-	);
+	return () => observer.disconnect();
 }

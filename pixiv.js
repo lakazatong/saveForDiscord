@@ -153,8 +153,8 @@
 	function startShowAllObserver() {
 		removeStickyButton();
 		const check = e => e?.tagName === 'BUTTON' && e?.querySelector('div:nth-child(2)')?.textContent.trim() === "Show all";
-		(getStartObserver.bind(document))(
-			() => [...document.querySelectorAll('button')].find(check),
+		getStartObserver(document.body)(
+			() => [...document.body.querySelectorAll('button')].find(check),
 			check,
 			e => {
 				e.click();
