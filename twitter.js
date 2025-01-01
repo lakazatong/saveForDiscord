@@ -4,7 +4,7 @@
 
 	// Injection logic
 
-	function twitterMediaCallback() {
+	function twitterPageCallback() {
 		console.log('twitter');
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
@@ -88,13 +88,13 @@
 		chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 			if (msg.request === 'twitterPage') {
 				documentReady = getDocumentReady.bind(document);
-				twitterMediaCallback();
+				twitterPageCallback();
 			}
 		});
 		twitterScriptInit = true;
 	}
 
 	documentReady = getDocumentReady.bind(document);
-	twitterMediaCallback();
+	twitterPageCallback();
 
 })();
