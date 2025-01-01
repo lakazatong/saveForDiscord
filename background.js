@@ -36,7 +36,7 @@ const pixivUsersRegex = /^https:\/\/www\.pixiv\.net\/en\/users\/(\d+)$/;
 chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
 	let match = pixivUsersRegex.exec(tab.url);
 	if (match && changeInfo.status == "loading") {
-		chrome.tabs.update(tabId, {url: `https://www.pixiv.net/en/users/${match[1]}/illustrations`});
+		chrome.tabs.update(tabId, { url: `https://www.pixiv.net/en/users/${match[1]}/illustrations` });
 		return;
 	}
 });
@@ -95,119 +95,159 @@ function historyLooseMatch(history) {
 	['pixiv.js', /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/, [
 		// new page
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{title: null},
-			{status: 'loading'},
-			{status: 'complete'},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ title: null },
+			{ status: 'loading' },
+			{ status: 'complete' },
 		],
 		// new page from refresh
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{status: 'loading'},
-			{status: 'complete'},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'loading' },
+			{ status: 'complete' },
 		],
 		// refresh 1
 		[
-			{status: 'loading', url: null},
-			{status: 'complete'},
-			{favIconUrl: null},
-			{title: null},
+			{ status: 'loading', url: null },
+			{ status: 'complete' },
+			{ favIconUrl: null },
+			{ title: null },
 		],
 		// refresh 2
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{status: 'complete'},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ status: 'complete' },
 		],
 		// from https://www.pixiv.net/en/*
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{status: 'complete'},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'complete' },
 		]
 	]],
 	['twitter.js', /^https:\/\/x\.com\/\w+/, [
 		// new page 1
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{status: 'loading'},
-			{status: 'complete'},
-			{favIconUrl: null},
-			{title: null},
-			{title: null},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'loading' },
+			{ status: 'complete' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
 		],
 		// new page 2
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{status: 'loading'},
-			{status: 'complete'},
-			{title: null},
-			{title: null},
-			{favIconUrl: null},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'loading' },
+			{ status: 'complete' },
+			{ title: null },
+			{ title: null },
+			{ favIconUrl: null },
+		],
+		// new page 3
+		[
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'loading' },
+			{ status: 'complete' },
+			{ title: null },
+			{ title: null },
+			{ title: null },
+			{ favIconUrl: null },
 		],
 		// new page from refresh
 		[
-			{status: 'loading', url: null},
-			{favIconUrl: null},
-			{status: 'loading'},
-			{title: null},
-			{status: 'complete'},
-			{favIconUrl: null},
-			{title: null},
-			{title: null},
+			{ status: 'loading', url: null },
+			{ favIconUrl: null },
+			{ status: 'loading' },
+			{ title: null },
+			{ status: 'complete' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
 		],
 		// refresh 1
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{title: null},
-			{status: 'complete'},
-			{title: null},
-			{favIconUrl: null},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ title: null },
+			{ favIconUrl: null },
 		],
 		// refresh 2
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{title: null},
-			{title: null},
-			{status: 'complete'},
-			{title: null},
-			{favIconUrl: null},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ title: null },
+			{ favIconUrl: null },
 		],
 		// refresh 3
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{title: null},
-			{status: 'complete'},
-			{favIconUrl: null},
-			{title: null},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ favIconUrl: null },
+			{ title: null },
 		],
 		// refresh 4
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{title: null},
-			{title: null},
-			{status: 'complete'},
-			{favIconUrl: null},
-			{title: null},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ favIconUrl: null },
+			{ title: null },
 		],
 		// refresh 5
 		[
-			{status: 'loading'},
-			{favIconUrl: null},
-			{title: null},
-			{status: 'complete'},
-			{title: null},
-			{title: null},
-			{title: null},
-			{title: null},
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ title: null },
+			{ title: null },
+			{ title: null },
+		],
+		// refresh 6
+		[
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ title: null },
+			{ title: null },
+		],
+		// refresh 7
+		[
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
+			{ title: null },
+			{ status: 'complete' },
+			{ title: null },
+		],
+		// refresh 8
+		[
+			{ status: 'loading' },
+			{ favIconUrl: null },
+			{ title: null },
+			{ title: null },
+			{ title: null },
+			{ title: null },
+			{ status: 'complete' },
 		],
 		// // from https://x.com/*
 		// [
@@ -239,7 +279,7 @@ function historyLooseMatch(history) {
 // Relay monitor messages
 
 function onMessageCallback(msg, sender, sendResponse) {
-	if (msg.request === 'pixivArtworks' || msg.request === 'twitterMedia') {
+	if (msg.request === 'pixivArtworks' || msg.request === 'twitterPage') {
 		chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
 			if (tabs) {
 				chrome.tabs.sendMessage(tabs[0].id, msg);

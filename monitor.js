@@ -2,51 +2,50 @@
 
 (() => {
 
-const states = [
-	{
-		name: 'pixivArtworks',
-		regex: /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/,
-		blacklist: []
-	},
-	{
-		name: 'twitterMedia',
-		regex: /^https:\/\/x\.com\//,
-		blacklist: [/^https:\/\/x\.com\//]
-	}
-];
+	const states = [
+		{
+			name: 'pixivArtworks',
+			regex: /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/,
+			blacklist: []
+		},
+		{
+			name: 'twitterPage',
+			regex: /^https:\/\/x\.com\//,
+			blacklist: [/^https:\/\/x\.com\//]
+		}
+	];
 
-let lastUrl;
-let updateTimeout;
+	let lastUrl;
+	let updateTimeout;
 
-function update() {
-	const url = window.location.href;
-	if (url === lastUrl) {
-		return;
-	}
+	function update() {
+		const url = window.location.href;
+		if (url === lastUrl) {
+			return;
+		}
 
-	if (lastUrl) {
-		for (const { name, regex, blacklist } of states) {
-			if (regex.test(url)) {
-				if (blacklist.some(blacklistRegex => blacklistRegex.test(lastUrl))) {
-					continue;
+		if (lastUrl) {
+			for (const { name, regex, blacklist } of states) {
+				if (regex.test(url)) {
+					if (blacklist.some(blacklistRegex => blacklistRegex.test(lastUrl))) {
+						continue;
+					}
+					chrome.runtime.sendMessage({ request: name });
+					break;
 				}
-				console.log(`${lastUrl} not in blacklist, sending ${JSON.stringify({ request: name })}...`);
-				chrome.runtime.sendMessage({ request: name });
-				break;
 			}
 		}
+
+		lastUrl = url;
 	}
 
-	lastUrl = url;
-}
-
-window.addEventListener('popstate', function (event) {
-	if (updateTimeout) {
-		clearTimeout(updateTimeout);
-	}
-	updateTimeout = setTimeout(() => {
-		update();
-	}, 100);
-});
+	window.addEventListener('popstate', function (event) {
+		if (updateTimeout) {
+			clearTimeout(updateTimeout);
+		}
+		updateTimeout = setTimeout(() => {
+			update();
+		}, 100);
+	});
 
 })();

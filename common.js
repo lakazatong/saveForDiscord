@@ -125,60 +125,64 @@ function getElementsByXPath(doc, xpath) {
 }
 
 function startObserver(root, givenGet, check, callback) {
-	function get() {
-		return documentReady() ? givenGet() : null;
-	}
-
-	let e = get();
-
-	if (e) {
-		callback(e);
-		return;
-	}
-
-	const observer = new MutationObserver((mutationsList, obs) => {
-		for (let mutation of mutationsList) {
-			if (!(mutation.target instanceof HTMLElement)) {
-				continue;
-			}
-
-			if (mutation.type === 'childList') {
-				mutation.addedNodes.forEach(node => {
-					if (node instanceof HTMLElement && check(node)) {
-						e = node;
-					}
-				});
-			} else if (mutation.type === 'attributes' || mutation.type === 'characterData') {
-				if (check(mutation.target)) {
-					e = mutation.target;
-				}
-			}
+	return new Promise((resolve, reject) => {
+		function get() {
+			return documentReady() ? givenGet() : null;
 		}
 
-		e = e ?? get();
+		let e = get();
+
 		if (e) {
 			callback(e);
-			obs.disconnect();
+			resolve(e);
+			return;
 		}
-	});
 
-	observer.observe(root, {
-		childList: true,
-		subtree: true,
-		attributes: true,
-		characterData: true,
+		const observer = new MutationObserver((mutationsList, obs) => {
+			for (let mutation of mutationsList) {
+				if (!(mutation.target instanceof HTMLElement)) {
+					continue;
+				}
+
+				if (mutation.type === 'childList') {
+					mutation.addedNodes.forEach(node => {
+						if (node instanceof HTMLElement && check(node)) {
+							e = node;
+						}
+					});
+				} else if (mutation.type === 'attributes' || mutation.type === 'characterData') {
+					if (check(mutation.target)) {
+						e = mutation.target;
+					}
+				}
+			}
+
+			e = e ?? get();
+			if (e) {
+				callback(e);
+				obs.disconnect();
+				resolve(e);
+			}
+		});
+
+		observer.observe(root, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			characterData: true,
+		});
 	});
 }
 
 function getStartObserver(doc) {
 	return function (givenGet, check, callback) {
-		startObserver(doc, givenGet, check, callback);
+		return startObserver(doc, givenGet, check, callback);
 	};
 }
 
 function getStartAttributeObserver(doc) {
 	return function (tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
-		startObserver(doc,
+		return startObserver(doc,
 			() => doc.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
 			e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
 			callback
