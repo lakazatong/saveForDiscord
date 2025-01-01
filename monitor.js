@@ -30,7 +30,7 @@
 					if (blacklist.some(blacklistRegex => blacklistRegex.test(lastUrl))) {
 						continue;
 					}
-					chrome.runtime.sendMessage({ request: name });
+					chrome.runtime?.sendMessage({ request: name });
 					break;
 				}
 			}

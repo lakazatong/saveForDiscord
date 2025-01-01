@@ -2,6 +2,14 @@
 
 (() => {
 
+	// Constants
+
+	const buttonsText = [`Toggle\nchannels`, `H\nnsfw`, `H\necchi`, `H\nsfw`, `H\ndoujin`, `AI\nnsfw`, `AI\necchi`, `AI\nsfw`, `BG\nnsfw`, `BG\necchi`, `BG\nsfw`];
+	const artworksRegex = /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/;
+	const enabledButtons = [];
+	const buttons = [];
+	let stickyButton = null;
+
 	// Add SaveForDiscord buttons
 
 	function buttonsMouseOver(b) {
@@ -138,14 +146,19 @@
 	}
 
 	function startPresentationDivsObserver(threshold) {
-		new MutationObserver((mutationsList, observer) => {
+		function callback(mutationsList, observer) {
 			const divs = document.body.querySelectorAll('div[role="presentation"]');
 			if (divs.length >= threshold) {
-				observer.disconnect();
+				observer?.disconnect();
 				addButtons(divs);
+				return true;
 			}
-		})
-			.observe(document.body, { childList: true, subtree: true });
+			return false;
+		}
+		if (documentReady()) {
+			if (callback()) return;
+		}
+		new MutationObserver(callback).observe(document, { childList: true, subtree: true });
 	}
 
 	// Clicks on the Show all button as soon as it's found
@@ -153,8 +166,8 @@
 	function startShowAllObserver() {
 		removeStickyButton();
 		const check = e => e?.tagName === 'BUTTON' && e?.querySelector('div:nth-child(2)')?.textContent.trim() === "Show all";
-		getStartObserver(document.body)(
-			() => [...document.body.querySelectorAll('button')].find(check),
+		getStartObserver(document)(
+			() => [...document.querySelectorAll('button')].find(check),
 			check,
 			e => {
 				e.click();
@@ -291,24 +304,9 @@
 
 	// Injection logic
 
-	function pixivArtworksCallback() {
-		console.log('pixiv');
-		startShowAllObserver();
-	}
-
-	// Script init
-
-	if (!pixivScriptInit) {
-		chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-			if (msg.request === 'pixivArtworks') {
-				documentReady = getDocumentReady.bind(document);
-				pixivArtworksCallback();
-			}
-		});
-		pixivScriptInit = true;
-	}
-
-	documentReady = getDocumentReady.bind(document);
-	pixivArtworksCallback();
+	console.log('pixivArtworks');
+	window.documentReady = getDocumentReady.bind(document);
+	startShowAllObserver();
+	startPresentationDivsObserver(2);
 
 })();

@@ -41,13 +41,7 @@
 			}
 		]
 	},
-	"content_scripts": [
-		{
-			"js": ["common.js", "monitor.js"],
-			"matches": ["*://www.pixiv.net/*", "*://x.com/*"],
-			"run_at": "document_start"
-		}
-	],
+	"content_scripts": [],
 	"content_security_policy": {
 		"script-src": "'self' 'unsafe-eval'; object-src 'self'"
 	}
