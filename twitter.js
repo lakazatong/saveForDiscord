@@ -4,8 +4,7 @@
 
 	// Injection logic
 
-	function twitterPageCallback() {
-		console.log('twitterPage');
+	function MinifyTwitterPage() {
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
 			// left side column
@@ -24,7 +23,7 @@
 						// modify timeline's tweets
 						observeNthChild(actualPrimaryColumn, [2, 1, 0], timeLine => {
 							function modifyTweet() {
-								console.log('modifyTweet called');
+								// console.log('modifyTweet called');
 								getStartAttributeObserver(timeLine)('article', 'data-testid', 'tweet', tweet => {
 									observeNthChild(tweet, [0, 0, 1], tweetTopDiv => {
 										// delete tweets with no img
@@ -33,7 +32,7 @@
 												let parent = tweet;
 												while (parent) {
 													if (parent.getAttribute('data-testid') === 'cellInnerDiv') {
-														console.log(`deleted tweet:`, parent);
+														// console.log(`deleted tweet:`, parent);
 														softRemove(parent);
 														break;
 													}
@@ -78,23 +77,10 @@
 		});
 	}
 
-	// function twitterHighlightsCallback() {
+	// Injection logic
 
-	// }
-
-	// Script init
-
-	if (!twitterScriptInit) {
-		chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-			if (msg.request === 'twitterPage') {
-				window.documentReady = getDocumentReady.bind(document);
-				twitterPageCallback();
-			}
-		});
-		twitterScriptInit = true;
-	}
-
+	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
-	twitterPageCallback();
+	MinifyTwitterPage();
 
 })();

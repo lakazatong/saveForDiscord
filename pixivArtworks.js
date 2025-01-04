@@ -5,7 +5,6 @@
 	// Constants
 
 	const buttonsText = [`Toggle\nchannels`, `H\nnsfw`, `H\necchi`, `H\nsfw`, `H\ndoujin`, `AI\nnsfw`, `AI\necchi`, `AI\nsfw`, `BG\nnsfw`, `BG\necchi`, `BG\nsfw`];
-	const artworksRegex = /^https:\/\/www\.pixiv\.net\/en\/artworks\/(\d+)$/;
 	const enabledButtons = [];
 	const buttons = [];
 	let stickyButton = null;
@@ -32,6 +31,7 @@
 		const button = document.createElement('button');
 		const span = document.createElement('span');
 
+		// button.id = window.uuid;
 		span.textContent = text;
 		button.appendChild(span);
 
@@ -72,15 +72,10 @@
 			}
 			buttons.shift();
 		}
-		if (!divs) {
-			divs = document.body.querySelectorAll('div[role="presentation"]');
-		}
 		for (let i = 1; i < divs.length; i++) {
 			enabledButtons.push(null);
 			buttons.push([]);
-			if (!(divs[i] instanceof HTMLDivElement)) {
-				continue;
-			}
+			if (!(divs[i] instanceof HTMLDivElement)) continue;
 			let buttonsVisible = false;
 			let anchor = divs[i].querySelector('a');
 
@@ -145,35 +140,57 @@
 		}
 	}
 
-	function startPresentationDivsObserver(threshold) {
-		function callback(mutationsList, observer) {
-			const divs = document.body.querySelectorAll('div[role="presentation"]');
-			if (divs.length >= threshold) {
-				observer?.disconnect();
-				addButtons(divs);
-				return true;
+	function startPresentationDivsObserver(threshold, callback) {
+		const divs = Array.from(document.body.querySelectorAll('div[role="presentation"]'));
+
+		if (divs.length >= threshold) {
+			callback(divs);
+			return;
+		}
+
+		function traverse(node) {
+			if (!(node instanceof HTMLElement)) return;
+			if (node.tagName === 'DIV' && node.getAttribute('role') === 'presentation') divs.push(node);
+			for (const child of node.childNodes) traverse(child);
+		}
+
+		const observer = new MutationObserver(function (mutationsList, obs) {
+			for (const mutation of mutationsList) {
+				for (const node of mutation.addedNodes) {
+					traverse(node);
+				}
 			}
-			return false;
-		}
-		if (documentReady()) {
-			if (callback()) return;
-		}
-		new MutationObserver(callback).observe(document, { childList: true, subtree: true });
+			if (divs.length >= threshold) {
+				obs.disconnect();
+				callback(divs);
+				return;
+			}
+		});
+
+		observer.observe(document.body, { childList: true, subtree: true });
 	}
 
 	// Clicks on the Show all button as soon as it's found
 
-	function startShowAllObserver() {
+	function ShowAllCase() {
+		function check(e) {
+			return e?.tagName === 'BUTTON' && e?.querySelector('div:nth-child(2)')?.textContent.trim() === "Show all";
+		}
+		function get() {
+			return [...document.querySelectorAll('button')].find(check);
+		}
 		removeStickyButton();
-		const check = e => e?.tagName === 'BUTTON' && e?.querySelector('div:nth-child(2)')?.textContent.trim() === "Show all";
-		getStartObserver(document)(
-			() => [...document.querySelectorAll('button')].find(check),
-			check,
-			e => {
-				e.click();
-				startPresentationDivsObserver(3);
-			}
-		);
+		const showAllButton = get();
+		if (showAllButton) showAllButton.click();
+		startPresentationDivsObserver(3, addButtons);
+		// getStartObserver(document)(
+		// 	get,
+		// 	check,
+		// 	e => {
+		// 		e.click();
+		// 		startPresentationDivsObserver(3, addButtons);
+		// 	}
+		// );
 	}
 
 	// Trigger save logic
@@ -306,7 +323,21 @@
 
 	console.log('pixivArtworks');
 	window.documentReady = getDocumentReady.bind(document);
-	startShowAllObserver();
-	startPresentationDivsObserver(2);
+	
+	function main(divs) {
+		// if (document.querySelector(`*[id="${window.uuid}"]`)) {
+		// 	console.log('nope');
+		// 	return;
+		// }
+		if (divs[0].children.length === 2) {
+			console.log('Single');
+			addButtons(divs);
+		} else {
+			console.log('Show all');
+			ShowAllCase();
+		}
+	}
+
+	startPresentationDivsObserver(2, main);
 
 })();
