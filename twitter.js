@@ -10,6 +10,12 @@
 	window.documentReady = getDocumentReady.bind(document);
 
 	function init() {
+		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
+
+		const marker = document.createElement('div');
+		marker.id = window.uuid;
+		document.body.appendChild(marker);
+
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
 			// left side column
