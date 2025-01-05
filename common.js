@@ -309,3 +309,5 @@ function getStartObserverOnInterval(rootGetter, refGetter, refSetter, intervalGe
 		return startObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter, get, check, callback, cooldown);
 	}
 }
+
+window.dispatchEvent(new Event('commonLoaded'));

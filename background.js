@@ -3,28 +3,28 @@
 // Injection logic
 
 function inject(tabId, files) {
-	const executeFile = (index) => {
+	function executeFile(index) {
 		if (index >= files.length) return;
-		console.log('injecting', files[index]);
+		console.log('injecting', files[index], 'into', tabId);
 		chrome.scripting.executeScript({
 			target: { tabId },
 			files: [files[index]]
 		}, () => {
 			executeFile(index + 1);
 		});
-	};
+	}
 	executeFile(0);
 }
 
 const contentScriptsConfig = [
 	{
 		regex: /^https:\/\/www\.pixiv\.net\/en\/artworks\/\d+/,
-		callback: function (tab) { inject(tab.id, ['common.js', 'pixivArtworks.js']); },
+		callback: function (tab) { inject(tab.id, ['pixivArtworks.js', 'common.js']); },
 	},
 	{
 		regex: /^https:\/\/x\.com\//,
-		callback: function (tab) { inject(tab.id, ['common.js', 'twitter.js']); },
-	}
+		callback: function (tab) { inject(tab.id, ['twitter.js', 'common.js']); },
+	},
 ];
 
 function getFromDocument(tabId, key) {
@@ -119,11 +119,26 @@ const redirections = [
 	{
 		regex: /^https:\/\/www\.pixiv\.net\/en\/users\/(\d+)$/,
 		getRedirectUrl: match => `https://www.pixiv.net/en/users/${match[1]}/illustrations`,
-	}
+	},
+	{
+		regex: /^https:\/\/x\.com\/(\w+)\/?$/,
+		getRedirectUrl: match => `https://x.com/${match[1]}/media`,
+		blacklist: [/^https:\/\/x\.com\/home\/?/],
+	},
 ];
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 	let match;
-	const getRedirectUrl = redirections.find(({ regex }) => (match = regex.exec(tab.url)) && match)?.getRedirectUrl;
-	if (getRedirectUrl) chrome.tabs.update(tabId, { url: getRedirectUrl(match) });
+	const redirection = redirections.find(({ regex, blacklist }) => {
+		if (match = regex.exec(tab.url)) return !(blacklist && blacklist.some(blacklistRegex => blacklistRegex.test(tab.url)));
+		return false;
+	});
+
+	if (!redirection) return;
+
+	const newUrl = redirection.getRedirectUrl(match);
+	if (tab?.url !== newUrl) {
+		console.log(`redirecting ${tab?.url} to ${newUrl}`);
+		chrome.tabs.update(tabId, { url: newUrl });
+	}
 });

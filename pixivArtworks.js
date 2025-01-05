@@ -1,6 +1,6 @@
 'use strict';
 
-(() => {
+window.addEventListener('commonLoaded', () => {
 
 	if (window?.pixivInit === true) return;
 
@@ -416,4 +416,4 @@
 
 	window.pixivInit ??= true;
 
-})();
+});
