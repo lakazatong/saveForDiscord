@@ -14,7 +14,7 @@
 	const enabledButtons = [];
 	const buttons = [];
 	let stickyButton = null;
-	function isDivPresentation(e) {
+	function isContainer(e) {
 		return e.tagName === 'DIV' && e.getAttribute('role') === 'presentation';
 	}
 
@@ -168,7 +168,7 @@
 		}
 
 		const traverse = getTraverse(
-			isDivPresentation,
+			isContainer,
 			node => divs.push(node)
 		);
 
@@ -348,18 +348,50 @@
 			() => containerInterval, i => { containerInterval = i; }
 		);
 
+		function isMain(e) {
+			return e.tagName === 'MAIN';
+		}
+
+		function getMain() {
+			return document.body.querySelector('main');
+		}
+
+		function withMain(callback) {
+			if (main) {
+				callback(main);
+				return;
+			}
+			startObserver(document.body, getMain, isMain, function (e) {
+				main = e;
+				callback(main);
+			});
+		}
+
+		function getContainer() {
+			return main.querySelector('div[role="presentation"]');
+		}
+
+		function withContainer(callback) {
+			if (container) {
+				callback(container);
+				return;
+			}
+			withMain(main => {
+				startObserver(main, getContainer, isContainer, function (e) {
+					container = e;
+					callback(container);
+				});
+			});
+		}
+
 		function mainCallback() {
-			// console.log('main', main);
+			console.log('main', main);
 			removeStickyButton();
-			startObserverOnIntervalForContainer(
-				() => main.querySelector('div[role="presentation"]'),
-				isDivPresentation,
-				containerCallback
-			);
+			startObserverOnIntervalForContainer(getContainer, isContainer, containerCallback);
 		}
 
 		function containerCallback() {
-			// console.log('container', container);
+			console.log('container', container);
 			if (container.children.length === 2) {
 				console.log('Single');
 				startPresentationDivsObserver(1, addButtons);
@@ -369,16 +401,14 @@
 			}
 		}
 
-		startObserverOnIntervalForMain(
-			() => document.body.querySelector('main'),
-			e => e.tagName === 'MAIN',
-			mainCallback
-		);
+		startObserverOnIntervalForMain(getMain, isMain, mainCallback);
 
 		let popstateTimeout;
 		window.addEventListener('popstate', function (event) {
 			if (popstateTimeout) clearTimeout(popstateTimeout);
-			popstateTimeout = setTimeout(() => containerCallback(), 100);
+			popstateTimeout = setTimeout(() => {
+				withContainer(_ => containerCallback());
+			}, 100);
 		});
 	}
 

@@ -1,5 +1,7 @@
 'use strict';
 
+// Injection logic
+
 function inject(tabId, files) {
 	const executeFile = (index) => {
 		if (index >= files.length) return;
@@ -92,7 +94,7 @@ chrome.tabs.onRemoved.addListener(tabId => tabsState.delete(tabId));
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 	const callback = contentScriptsConfig.find(({ regex }) => regex.test(tab.url))?.callback;
 	if (!callback) return;
-	
+
 	const key = String(tabId);
 	
 	if (!tabsState[key]) tabsState[key] = {};
@@ -102,10 +104,26 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 		tabsState[key].lastUrl = tab.url;
 		return;
 	}
+
 	if (changeInfo.status === 'loading') {
 		if (tabsState[key]?.state === 0) return;
 		tabsState[key].state = 0;
-		callbackOnceTabReady(tabId, tab, callback);
+		if (callback) callbackOnceTabReady(tabId, tab, callback);
 		return;
 	}
+});
+
+// Redirections
+
+const redirections = [
+	{
+		regex: /^https:\/\/www\.pixiv\.net\/en\/users\/(\d+)$/,
+		getRedirectUrl: match => `https://www.pixiv.net/en/users/${match[1]}/illustrations`,
+	}
+];
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	let match;
+	const getRedirectUrl = redirections.find(({ regex }) => (match = regex.exec(tab.url)) && match)?.getRedirectUrl;
+	if (getRedirectUrl) chrome.tabs.update(tabId, { url: getRedirectUrl(match) });
 });

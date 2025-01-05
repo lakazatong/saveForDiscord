@@ -290,7 +290,7 @@ function observeElementChanges(element, callback) {
 
 function startObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter, get, check, callback, cooldown) {
 	function wrappedCallback(tmp) {
-		if (tmp === refGetter() || tmp.childElementCount === 0) return;
+		if (tmp === refGetter() || tmp?.childElementCount === 0) return;
 		refSetter(tmp);
 		callback();
 		if (intervalGetter()) clearInterval(intervalGetter());
