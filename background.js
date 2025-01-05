@@ -14,8 +14,6 @@ function inject(tabId, files) {
 	executeFile(0);
 }
 
-// const tabStates = new Map();
-
 const contentScriptsConfig = [
 	{
 		regex: /^https:\/\/www\.pixiv\.net\/en\/artworks\/\d+/,
@@ -47,82 +45,62 @@ function getFromDocument(tabId, key) {
 	});
 }
 
-const tabsState = {};
+const tabsState = new Map();
 
-// function handleTab(tab, onActivated) {
-// 	const { id: tabId, url } = tab;
-// 	let tabState = tabStates.get(tabId);
-// 	if (tabState) return tabState;
-// 	if (!url) return null;
-// 	const config = contentScriptsConfig.find(({ regex }) => regex.test(url));
-// 	if (!config) return null;
-// 	tabState = { state: 0, ...config };
-// 	tabStates.set(tabId, tabState);
-// 	if (onActivated) config.callback(tab);
-// 	return tabState;
-// }
+function callbackOnceTabReady(tabId, tab, callback) {
+	const key = String(tabId);
+	let done = false;
 
-// function handleEvent(name, tab, onActivated = false) {
-// 	const tabState = handleTab(tab, onActivated);
-// 	if (tabState) {
-// 		console.log(name, tab, tabState);
-// 	}
-// 	return tabState;
-// }
+	async function intervalCallback() {
+		if (done) return;
+		const readyState = await getFromDocument(tabId, 'readyState');
+		if (readyState === 'interactive' || readyState === 'complete') {
+			done = true;
+			clearInterval(checkReadyState);
+			if (tabsState[key]?.callbackTimeout) clearTimeout(tabsState[key].callbackTimeout);
+			tabsState[key].callbackTimeout = setTimeout(() => callback(tab), 100);
+		}
+	}
 
-// chrome.tabs.onCreated.addListener(tab => handleEvent('onCreated', tab));
-// chrome.tabs.onActivated.addListener(({ tabId }) => chrome.tabs.get(tabId, tab => handleEvent('onActivated', tab, true)));
-// chrome.tabs.onRemoved.addListener(tabId => tabStates.delete(tabId));
+	let p = Promise.resolve();
+	const checkReadyState = setInterval(async () => {
+		await p;
+		if (done) return;
+		p = intervalCallback();
+	}, 100);
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => chrome.tabs.get(tabId, tab => {
+	const callback = contentScriptsConfig.find(({ regex }) => regex.test(tab.url))?.callback;
+	if (!callback) return;
+
+	const key = String(tabId);
+	if (tabsState[key] && (tabsState?.state || tabsState[key]?.lastUrl === tab.url)) return;
+
+	tabsState[key] = { lastUrl: tab.url };
+
+	callbackOnceTabReady(tabId, tab, callback);
+}));
+
+chrome.tabs.onRemoved.addListener(tabId => tabsState.delete(tabId));
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-	// const tabState = handleEvent('onUpdated', tab);
-	// if (!tabState) return;
-	// if (!tabState.regex.test(tab.url)) {
-	// 	tabStates.delete(tabId);
-	// 	return;
-	// }
-	// switch (tabState.state) {
-	// 	case 0:
-	// 		if (changeInfo.status === 'loading') {
-	// 			tabState.state = 1;
-	// 		}
-	// 		break;
-	// 	case 1:
-	// 		const readyState = await getDocumentReadyState(tabId);
-	// 		if (changeInfo.status === 'complete' || readyState === 'complete' || readyState === 'interactive') {
-	// 			tabState.callback(tab);
-	// 			tabState.state = 0;
-	// 		}
-	// 		break;
-	// }
 	const callback = contentScriptsConfig.find(({ regex }) => regex.test(tab.url))?.callback;
 	if (!callback) return;
 	
 	const key = String(tabId);
+	
+	if (!tabsState[key]) tabsState[key] = {};
+
 	if (changeInfo.status === 'complete') {
-		tabsState[key] = { state: 1 };
+		tabsState[key].state = 1;
+		tabsState[key].lastUrl = tab.url;
 		return;
 	}
 	if (changeInfo.status === 'loading') {
 		if (tabsState[key]?.state === 0) return;
-		tabsState[key] = { state: 0 };
-		let done = false;
-
-		async function intervalCallback() {
-			if (done) return;
-			const readyState = await getFromDocument(tabId, 'readyState');
-			if (readyState === 'interactive' || readyState === 'complete') {
-				done = true;
-				clearInterval(checkReadyState);
-				if (tabsState[key]?.callbackTimeout) clearTimeout(tabsState[key].callbackTimeout);
-				tabsState[key].callbackTimeout = setTimeout(() => callback(tab), 100);
-			}
-		}
-
-		let p = Promise.resolve();
-		const checkReadyState = setInterval(async () => {
-			await p;
-			if (done) return;
-			p = intervalCallback();
-		}, 100);
+		tabsState[key].state = 0;
+		callbackOnceTabReady(tabId, tab, callback);
+		return;
 	}
 });

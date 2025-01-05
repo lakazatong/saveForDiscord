@@ -81,6 +81,16 @@
 
 	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
-	MinifyTwitterPage();
+	if (document.querySelector(`*[id="${window.uuid}"]`)) return;
+	
+	function main() {
+		const marker = document.createElement('div');
+		marker.id = window.uuid;
+		document.body.appendChild(marker);
+		
+		MinifyTwitterPage();
+	}
+
+	main();
 
 })();

@@ -2,12 +2,21 @@
 
 (() => {
 
+	if (window?.pixivInit === true) return;
+
 	// Constants
 
+	let main;
+	let mainInterval;
+	let container;
+	let containerInterval;
 	const buttonsText = [`Toggle\nchannels`, `H\nnsfw`, `H\necchi`, `H\nsfw`, `H\ndoujin`, `AI\nnsfw`, `AI\necchi`, `AI\nsfw`, `BG\nnsfw`, `BG\necchi`, `BG\nsfw`];
 	const enabledButtons = [];
 	const buttons = [];
 	let stickyButton = null;
+	function isDivPresentation(e) {
+		return e.tagName === 'DIV' && e.getAttribute('role') === 'presentation';
+	}
 
 	// Add SaveForDiscord buttons
 
@@ -31,7 +40,7 @@
 		const button = document.createElement('button');
 		const span = document.createElement('span');
 
-		// button.id = window.uuid;
+		button.id = window.uuid;
 		span.textContent = text;
 		button.appendChild(span);
 
@@ -65,6 +74,9 @@
 	}
 
 	function addButtons(divs) {
+		if (container.querySelector(`*[id="${window.uuid}"]`)) return;
+		console.log('setting buttons');
+		if (!divs) divs = container.querySelectorAll('div[role="presentation"]');
 		enabledButtons.length = 0;
 		while (buttons.length) {
 			while (buttons[0].length) {
@@ -72,13 +84,15 @@
 			}
 			buttons.shift();
 		}
-		for (let i = 1; i < divs.length; i++) {
+		for (let i = 0; i < divs.length; i++) {
+			const div = divs[i];
+			div.parentElement.style.paddingTop = '0px';
 			enabledButtons.push(null);
 			buttons.push([]);
-			if (!(divs[i] instanceof HTMLDivElement)) continue;
+			if (!(div instanceof HTMLDivElement)) continue;
 			let buttonsVisible = false;
-			let anchor = divs[i].querySelector('a');
-
+			let anchor = div.querySelector('a');
+			
 			for (let j = 0; j < 11; j++) {
 				const button = createButtonStyles(j, buttonsText[j]);
 				button.userData = {};
@@ -95,7 +109,7 @@
 
 					button.addEventListener('click', () => {
 						buttonsVisible = !buttonsVisible;
-						buttons[i - 1].slice(1).forEach(b => {
+						buttons[i].slice(1).forEach(b => {
 							Object.assign(b.style, {
 								opacity: buttonsVisible ? '0.5' : '0',
 								pointerEvents: buttonsVisible ? 'auto' : 'none',
@@ -120,54 +134,53 @@
 						if (button.userData.enabled) {
 							button.userData.enabled = false;
 							button.style.filter = setFilter(button.style.filter, 'hue-rotate', '0deg');
-							enabledButtons[i - 1] = null;
+							enabledButtons[i] = null;
 						} else {
-							buttons[i - 1].slice(1).forEach(b => {
+							buttons[i].slice(1).forEach(b => {
 								b.userData.enabled = false;
 								b.style.filter = setFilter(b.style.filter, 'hue-rotate', '0deg');
 							});
 							button.userData.enabled = true;
 							button.style.filter = setFilter(button.style.filter, 'hue-rotate', '90deg');
-							enabledButtons[i - 1] = button;
-							enabledButtons[i - 1].userData.imgUrl = anchor.href;
+							enabledButtons[i] = button;
+							enabledButtons[i].userData.imgUrl = anchor.href;
 							addStickyButton();
 						}
 					});
 				}
-				divs[i].appendChild(button);
-				buttons[i - 1].push(button);
+				div.appendChild(button);
+				buttons[i].push(button);
 			}
 		}
 	}
 
 	function startPresentationDivsObserver(threshold, callback) {
-		const divs = Array.from(document.body.querySelectorAll('div[role="presentation"]'));
-
+		const divs = Array.from(container.querySelectorAll('div[role="presentation"]'));
+		
 		if (divs.length >= threshold) {
 			callback(divs);
 			return;
 		}
 
-		function traverse(node) {
-			if (!(node instanceof HTMLElement)) return;
-			if (node.tagName === 'DIV' && node.getAttribute('role') === 'presentation') divs.push(node);
-			for (const child of node.childNodes) traverse(child);
-		}
+		const traverse = getTraverse(
+			isDivPresentation,
+			node => divs.push(node)
+		);
 
-		const observer = new MutationObserver(function (mutationsList, obs) {
+		const observer = new MutationObserver(function (mutationsList) {
 			for (const mutation of mutationsList) {
 				for (const node of mutation.addedNodes) {
 					traverse(node);
 				}
 			}
 			if (divs.length >= threshold) {
-				obs.disconnect();
+				observer.disconnect();
 				callback(divs);
 				return;
 			}
 		});
 
-		observer.observe(document.body, { childList: true, subtree: true });
+		observer.observe(container, { subtree: true, childList: true });
 	}
 
 	// Clicks on the Show all button as soon as it's found
@@ -177,20 +190,15 @@
 			return e?.tagName === 'BUTTON' && e?.querySelector('div:nth-child(2)')?.textContent.trim() === "Show all";
 		}
 		function get() {
-			return [...document.querySelectorAll('button')].find(check);
+			return [...main.querySelectorAll('button')].find(check);
 		}
-		removeStickyButton();
+		// getStartObserver(main)(get, check, showAllButton => {
+		// 	showAllButton.click();
+		// 	startPresentationDivsObserver(2, addButtons);
+		// });
 		const showAllButton = get();
 		if (showAllButton) showAllButton.click();
-		startPresentationDivsObserver(3, addButtons);
-		// getStartObserver(document)(
-		// 	get,
-		// 	check,
-		// 	e => {
-		// 		e.click();
-		// 		startPresentationDivsObserver(3, addButtons);
-		// 	}
-		// );
+		startPresentationDivsObserver(2, addButtons);
 	}
 
 	// Trigger save logic
@@ -323,21 +331,54 @@
 
 	console.log('pixivArtworks');
 	window.documentReady = getDocumentReady.bind(document);
-	
-	function main(divs) {
-		// if (document.querySelector(`*[id="${window.uuid}"]`)) {
-		// 	console.log('nope');
-		// 	return;
-		// }
-		if (divs[0].children.length === 2) {
-			console.log('Single');
-			addButtons(divs);
-		} else {
-			console.log('Show all');
-			ShowAllCase();
+
+	function init() {
+		const startObserverOnIntervalForMain = getStartObserverOnInterval(() => document.body,
+			() => main, e => { main = e; },
+			() => mainInterval, i => { mainInterval = i; }
+		);
+
+		const startObserverOnIntervalForContainer = getStartObserverOnInterval(() => main,
+			() => container, e => { container = e; },
+			() => containerInterval, i => { containerInterval = i; }
+		);
+
+		function mainCallback() {
+			// console.log('main', main);
+			removeStickyButton();
+			startObserverOnIntervalForContainer(
+				() => main.querySelector('div[role="presentation"]'),
+				isDivPresentation,
+				containerCallback
+			);
 		}
+
+		function containerCallback() {
+			// console.log('container', container);
+			if (container.children.length === 2) {
+				console.log('Single');
+				addButtons();
+			} else {
+				console.log('Show all');
+				ShowAllCase();
+			}
+		}
+
+		startObserverOnIntervalForMain(
+			() => document.body.querySelector('main'),
+			e => e.tagName === 'MAIN',
+			mainCallback
+		);
+
+		let popstateTimeout;
+		window.addEventListener('popstate', function (event) {
+			if (popstateTimeout) clearTimeout(popstateTimeout);
+			popstateTimeout = setTimeout(() => containerCallback(), 100);
+		});
 	}
 
-	startPresentationDivsObserver(2, main);
+	init();
+
+	window.pixivInit ??= true;
 
 })();

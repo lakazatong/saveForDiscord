@@ -123,6 +123,15 @@ function getElementsByXPath(doc, xpath) {
 	return result;
 }
 
+function getTraverse(check, callback) {
+	function traverse(node) {
+		if (!(node instanceof HTMLElement)) return;
+		if (check(node)) callback(node);
+		for (const child of node.childNodes) traverse(child);
+	}
+	return traverse;
+}
+
 function startObserver(root, get, check, callback) {
 	return new Promise((resolve, reject) => {
 		const e = get();
@@ -133,18 +142,23 @@ function startObserver(root, get, check, callback) {
 			return;
 		}
 
-		const observer = new MutationObserver((mutationsList, obs) => {
-			function maybeDone(e) {
-				if (e) {
-					callback(e);
-					obs.disconnect();
-					resolve(e);
-				}
+		let observer;
+		
+		function maybeDone(e) {
+			if (e) {
+				callback(e);
+				observer.disconnect();
+				resolve(e);
 			}
+		}
+		
+		const traverse = getTraverse(check, maybeDone);
+
+		observer = new MutationObserver((mutationsList) => {
 			for (const mutation of mutationsList) {
 				if (mutation.type === 'childList') {
 					for (const node of mutation.addedNodes) {
-						if (node instanceof HTMLElement && check(node)) maybeDone(node);
+						traverse(node);
 					}
 				// } else if (mutation.type === 'attributes' || mutation.type === 'characterData') {
 				} else if (mutation.type === 'attributes') {
@@ -159,9 +173,9 @@ function startObserver(root, get, check, callback) {
 	});
 }
 
-function getStartObserver(doc) {
-	return function (givenGet, check, callback) {
-		return startObserver(doc, givenGet, check, callback);
+function getStartObserver(root) {
+	return function (get, check, callback) {
+		return startObserver(root, get, check, callback);
 	};
 }
 
@@ -201,35 +215,97 @@ function observeNthChild(root, indices, callback) {
 		observer.observe(parent, { childList: true, subtree: false });
 	}
 
-	function traverse(parent, remainingIndices) {
+	function help(parent, remainingIndices) {
 		if (!parent || remainingIndices.length === 0) {
 			callback(parent);
 			return;
 		}
 
-		observeSingleLevel(parent, remainingIndices[0], nextParent => {
-			traverse(nextParent, remainingIndices.slice(1));
-		});
+		observeSingleLevel(parent, remainingIndices[0], nextParent => help(nextParent, remainingIndices.slice(1)));
 	}
 
-	traverse(root, indices);
+	help(root, indices);
+}
+
+function getNthChild(root, indices, callback) {
+	if (!Array.isArray(indices)) indices = [indices];
+
+	const observers = [];
+
+	function observeSingleLevel(parent, index, nextStep) {
+		let children = Array.from(parent.children);
+		let target = children[index];
+
+		if (target) {
+			nextStep(target);
+			return;
+		}
+
+		const observer = new MutationObserver(() => {
+			children = Array.from(parent.children);
+			target = children[index];
+			if (target) {
+				observer.disconnect();
+				nextStep(target);
+			}
+		});
+
+		observer.observe(parent, { childList: true, subtree: false });
+		observers.push(observer);
+	}
+
+	function help(parent, remainingIndices) {
+		if (!parent || remainingIndices.length === 0) {
+			disconnectObservers();
+			callback(parent);
+			return;
+		}
+
+		observeSingleLevel(parent, remainingIndices[0], nextParent => help(nextParent, remainingIndices.slice(1)));
+	}
+
+	function disconnectObservers() {
+		observers.forEach(observer => observer.disconnect());
+	}
+
+	help(root, indices);
 }
 
 function observeElementChanges(element, callback) {
 	if (!element) return;
 
-	const observer = new MutationObserver(() => {
-		callback(element);
-	});
+	const observer = new MutationObserver(() => callback(element));
 
 	observer.observe(element, {
-		attributes: true,
-		childList: true,
 		subtree: true,
+		childList: true,
+		attributes: true,
 		characterData: true,
 	});
 
 	callback(element);
 
 	return () => observer.disconnect();
+}
+
+function startObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter, get, check, callback, cooldown) {
+	function wrappedCallback(tmp) {
+		if (tmp === refGetter() || tmp.childElementCount === 0) return;
+		refSetter(tmp);
+		callback();
+		if (intervalGetter()) clearInterval(intervalGetter());
+		intervalSetter(setInterval(help, cooldown));
+	}
+
+	function help() {
+		startObserver(rootGetter(), get, check, wrappedCallback);
+	}
+
+	help();
+}
+
+function getStartObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter) {
+	return function (get, check, callback, cooldown=100) {
+		return startObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter, get, check, callback, cooldown);
+	}
 }
