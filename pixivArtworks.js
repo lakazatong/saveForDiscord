@@ -75,8 +75,10 @@
 
 	function addButtons(divs) {
 		if (container.querySelector(`*[id="${window.uuid}"]`)) return;
-		console.log('setting buttons');
 		if (!divs) divs = container.querySelectorAll('div[role="presentation"]');
+		
+		// set buttons instead of adding them JUST TO BE 100% SURE bruh
+		console.log('setting buttons');
 		enabledButtons.length = 0;
 		while (buttons.length) {
 			while (buttons[0].length) {
@@ -84,6 +86,7 @@
 			}
 			buttons.shift();
 		}
+		
 		for (let i = 0; i < divs.length; i++) {
 			const div = divs[i];
 			div.parentElement.style.paddingTop = '0px';
@@ -154,6 +157,8 @@
 		}
 	}
 
+	// Safest way to call addButtons
+
 	function startPresentationDivsObserver(threshold, callback) {
 		const divs = Array.from(container.querySelectorAll('div[role="presentation"]'));
 		
@@ -183,7 +188,7 @@
 		observer.observe(container, { subtree: true, childList: true });
 	}
 
-	// Clicks on the Show all button as soon as it's found
+	// Clicks on the Show all button as soon as it's found if it is
 
 	function ShowAllCase() {
 		function check(e) {
@@ -201,7 +206,7 @@
 		startPresentationDivsObserver(2, addButtons);
 	}
 
-	// Trigger save logic
+	// Sticky button
 
 	async function sendImages() {
 		let pendingRequests = enabledButtons.filter(b => b).length;
@@ -357,7 +362,7 @@
 			// console.log('container', container);
 			if (container.children.length === 2) {
 				console.log('Single');
-				addButtons();
+				startPresentationDivsObserver(1, addButtons);
 			} else {
 				console.log('Show all');
 				ShowAllCase();
