@@ -26,22 +26,27 @@ const contentScriptsConfig = [
 ];
 
 function getFromDocument(tabId, key) {
-	return new Promise(resolve => {
-		chrome.scripting.executeScript({
-			target: { tabId },
-			func: key => {
-				const keys = key.split('.');
-				let value = document;
-				for (let i = 0; i < keys.length; i++) {
-					value = value[keys[i]];
-					if (value === undefined) break;
-				}
-				return value;
-			},
-			args: [key]
-		}, result => {
-			resolve(result[0]?.result);
-		});
+	return new Promise((resolve, reject) => {
+		try {
+			chrome.scripting.executeScript({
+				target: { tabId },
+				func: key => {
+					if (!document || typeof document.querySelector !== 'function') return null;
+					const keys = key.split('.');
+					let value = document;
+					for (let i = 0; i < keys.length; i++) {
+						value = value[keys[i]];
+						if (value === undefined) return null;
+					}
+					return value;
+				},
+				args: [key]
+			}, result => {
+				resolve(chrome.runtime.lastError ? null : (result?.[0]?.result || null));
+			});
+		} catch (err) {
+			resolve(null);
+		}
 	});
 }
 
