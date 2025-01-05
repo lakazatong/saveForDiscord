@@ -2,9 +2,14 @@
 
 (() => {
 
+	if (window?.twitterInit === true) return;
+
 	// Injection logic
 
-	function MinifyTwitterPage() {
+	console.log('twitter');
+	window.documentReady = getDocumentReady.bind(document);
+
+	function init() {
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
 			// left side column
@@ -76,21 +81,9 @@
 			});
 		});
 	}
-
-	// Injection logic
-
-	console.log('twitter');
-	window.documentReady = getDocumentReady.bind(document);
-	if (document.querySelector(`*[id="${window.uuid}"]`)) return;
 	
-	function main() {
-		const marker = document.createElement('div');
-		marker.id = window.uuid;
-		document.body.appendChild(marker);
-		
-		MinifyTwitterPage();
-	}
+	init();
 
-	main();
+	window.twitterInit ??= true;
 
 })();
