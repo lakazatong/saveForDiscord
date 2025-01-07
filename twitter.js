@@ -4,7 +4,7 @@ window.addEventListener('commonLoaded', () => {
 
 	if (window?.twitterInit === true) return;
 
-	const userMediaResponses = [];
+	const catchedTweets = [];
 
 	function stripUrlAndAppendFormat(url) {
 		const urlObj = new URL(url);
@@ -19,16 +19,32 @@ window.addEventListener('commonLoaded', () => {
 		return match ? match[1] : null;
 	}
 
-	async function getTweetImageSrcs(tweetId) {
-		console.log(userMediaResponses);
-		// console.log(`fetching`, `https://twitter.com/i/web/status/${tweetId}`);
-		// const response = await fetch(`https://twitter.com/i/web/status/${tweetId}`, {
-		// 	method: 'GET',
-		// 	headers: {
-		// 		'Accept': 'text/html',
-		// 	}
-		// });
-		// return (new DOMParser().parseFromString(await response.text(), 'text/html')).querySelector('div[data-testid="tweetPhoto"]').map(img => stripUrlAndAppendFormat(img.querySelector('img').getAttribute('src')));
+	const tweetMediaSrcsSubscribers = new Map();
+
+	async function getTweetMediaSrcs(tweetId) {
+		function getInfo(tweets) {
+			return tweets.find(tweet => tweet.rest_id === tweetId);
+		}
+		let tweetInfo = getInfo(catchedTweets);
+		if (!tweetInfo) {
+			await new Promise(function (resolve, reject) {
+				const subsriberId = generateUUID();
+				tweetMediaSrcsSubscribers.set(subsriberId, function (newTweets) {
+					tweetInfo = getInfo(newTweets);
+					if (tweetInfo) {
+						tweetMediaSrcsSubscribers.delete(subsriberId);
+						resolve();
+					}
+				});
+			});
+		}
+		const srcs = tweetInfo.legacy.entities.media.map(media => 
+			media.type === 'video'
+				? media.video_info.variants.reduce((highest, current) => current.bitrate > (highest.bitrate || 0) ? current : highest).url
+				: media.media_url_https
+		);
+		imageSets.set(tweetId, srcs);
+		console.log(tweetId, srcs);
 	}
 
 	// Injection logic
@@ -48,11 +64,18 @@ window.addEventListener('commonLoaded', () => {
 		window.addEventListener('message', function (event) {
 			if (event.source == window && event.data && event.data.action == 'UserMediaResponse') {
 				const body = JSON.parse(event.data.body);
-				userMediaResponses.push(body);
-				console.log(body);
-				// if (body.status == 'ok') {
-				// 	console.log('UserMediaResponse', body.data);
-				// }
+				// console.log('UserMediaResponse', body);
+				const instructions = body.data.user.result.timeline_v2.timeline.instructions;
+				let rawTweets = instructions.find(obj => obj.type === 'TimelineAddToModule')?.moduleItems;
+				if (!rawTweets) {
+					const entries = instructions.find(obj => obj.type === 'TimelineAddEntries').entries;
+					rawTweets = entries.find(item => !item.entryId.startsWith('cursor'))?.content.items;
+				}
+				if (rawTweets) {
+					const tweets = rawTweets.map(tweet => tweet.item.itemContent.tweet_results.result);
+					tweets.forEach(tweet => catchedTweets.push(tweet));
+					tweetMediaSrcsSubscribers.forEach(callback => callback(tweets));
+				}
 			}
 		});
 
@@ -80,12 +103,10 @@ window.addEventListener('commonLoaded', () => {
 						
 						observeNthChild(actualPrimaryColumn, [2, 1, 0], timeLine => {
 							timeLine.querySelectorAll('li[role="listitem"]').forEach(liElement => {
-								startObserver(liElement, () => liElement.querySelector('img'), e => e.tagName === 'IMG', img => {
-									const src = stripUrlAndAppendFormat(img.getAttribute('src'));
-									if (imageSets.has(src)) return;
-									startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
-										imageSets.set(src, link.querySelector('svg') ? getTweetImageSrcs(extractTweetId(link.getAttribute('href'))) : [src]);
-									});
+								startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
+									const tweetId = extractTweetId(link.getAttribute('href'));
+									if (imageSets.has(tweetId)) return;
+									imageSets.set(tweetId, getTweetMediaSrcs(tweetId));
 								});
 							});
 
