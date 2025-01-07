@@ -6,9 +6,9 @@ window.addEventListener('commonLoaded', () => {
 
 	const catchedTweets = [];
 
-	function getRootDims() {
+	function getReactRootDims() {
 		const reactRoot = document.getElementById('react-root');
-		return [reactRoot.offsetWidth, reactRoot.offsetHeight];
+		return [reactRoot.offsetWidth - 1, reactRoot.offsetHeight - 1];
 	}
 
 	function stripUrlAndAppendFormat(url) {
@@ -118,7 +118,7 @@ window.addEventListener('commonLoaded', () => {
 						// profile pp
 						observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
 						// hacky but it works
-						const actualPrimaryColumnWidth = `${getRootDims()[0]}px`;
+						const actualPrimaryColumnWidth = `${getReactRootDims()[0]}px`;
 						actualPrimaryColumn.style.width = actualPrimaryColumnWidth;
 						actualPrimaryColumn.style.maxWidth = actualPrimaryColumnWidth;
 						// remove the content of the media page
@@ -234,11 +234,10 @@ window.addEventListener('commonLoaded', () => {
 				img.src = src;
 				img.style.width = '100%';
 				img.style.height = '100%';
-				img.style.maxWidth = '100%';
-				img.style.maxHeight = '100%';
 				img.style.objectFit = 'cover';
 				img.style.objectPosition = 'center';
-				img.style.margin = '2px';
+				img.style.margin = '0';
+				img.style.display = 'block';
 				overviewGrid.appendChild(img);
 			});
 	}
@@ -356,27 +355,24 @@ window.addEventListener('commonLoaded', () => {
 		}
 
 		if (!column.querySelector('div[id="image-container"]')) {
+
 			imageContainer = document.createElement('div');
 			imageContainer.style.userSelect = 'none';
 			imageContainer.id = 'image-container';
-			column.appendChild(imageContainer);
-			
-			currentImage = document.createElement('img');
-			currentImage.style.userSelect = 'none';
-			imageContainer.appendChild(currentImage);
-			
 			imageContainer.style.position = 'relative';
 			imageContainer.style.overflow = 'hidden';
+			column.appendChild(imageContainer);
+
+			currentImage = document.createElement('img');
+			currentImage.style.userSelect = 'none';
 			currentImage.style.maxWidth = '100%';
 			currentImage.style.maxHeight = '100%';
 			currentImage.style.objectFit = 'contain';
-			updateImage();
-		
+			imageContainer.appendChild(currentImage);
+			
 			overviewGrid = document.createElement('div');
 			overviewGrid.style.userSelect = 'none';
 			overviewGrid.style.position = 'relative';
-			overviewGrid.style.width = '100vw';
-			overviewGrid.style.height = '100vh';
 			overviewGrid.style.overflow = 'hidden';
 			overviewGrid.style.display = 'grid';
 			overviewGrid.style.gridTemplateColumns = 'repeat(10, 1fr)';
@@ -387,12 +383,21 @@ window.addEventListener('commonLoaded', () => {
 			overviewGrid.style.right = '0';
 			overviewGrid.style.bottom = '0';
 			imageContainer.appendChild(overviewGrid);
+
+			updateImage();
 		}
 
-		// always update the dimensions
-		const [imageContainerWidth, imageContainerHeight] = getRootDims();
-		imageContainer.style.width = `${imageContainerWidth}px`;
-		imageContainer.style.height = `${imageContainerHeight}px`;
+		const [reactRootWidth,reactRootHeight] = getReactRootDims();
+		imageContainer.style.width = `${reactRootWidth}px`;
+		imageContainer.style.maxWidth = `${reactRootWidth}px`;
+		imageContainer.style.height = `${reactRootHeight}px`;
+		imageContainer.style.maxHeight = `${reactRootHeight}px`;
+
+		overviewGrid.style.maxWidth = `${reactRootWidth}px`;
+		overviewGrid.style.width = `${reactRootWidth}px`;
+		overviewGrid.style.height = `${reactRootHeight}px`;
+		overviewGrid.style.maxHeight = `${reactRootHeight}px`;
+
 	}
 
 	init();
