@@ -21,7 +21,7 @@ window.addEventListener('commonLoaded', () => {
 
 	const tweetMediaSrcsSubscribers = new Map();
 
-	async function getTweetMediaSrcs(tweetId) {
+	async function getTweetInfo(tweetId) {
 		function getInfo(tweets) {
 			return tweets.find(tweet => tweet.rest_id === tweetId);
 		}
@@ -38,13 +38,21 @@ window.addEventListener('commonLoaded', () => {
 				});
 			});
 		}
-		const srcs = tweetInfo.legacy.entities.media.map(media => 
-			media.type === 'video'
-				? media.video_info.variants.reduce((highest, current) => current.bitrate > (highest.bitrate || 0) ? current : highest).url
-				: media.media_url_https
+		return tweetInfo;
+	}
+
+	function getTweetMediaSrcs(tweetInfo) {
+		// ignore videos for now (will take their video thumbnails)
+		return tweetInfo.legacy.entities.media.map(media =>
+			// media.type === 'video'
+			// 	? media.video_info.variants.reduce((highest, current) => current.bitrate > (highest.bitrate || 0) ? current : highest).url
+			// 	: media.media_url_https
+			media.media_url_https
 		);
-		imageSets.set(tweetId, srcs);
-		console.log(tweetId, srcs);
+	}
+
+	function getTweetCreatedAt(tweetInfo) {
+		return new Date(tweetInfo.legacy.created_at).getTime();
 	}
 
 	// Injection logic
@@ -52,7 +60,8 @@ window.addEventListener('commonLoaded', () => {
 	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
 
-	const imageSets = new Map();
+	const seenTweets = new Set();
+	const medias = [];
 
 	function init() {
 		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
@@ -105,8 +114,10 @@ window.addEventListener('commonLoaded', () => {
 							timeLine.querySelectorAll('li[role="listitem"]').forEach(liElement => {
 								startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
 									const tweetId = extractTweetId(link.getAttribute('href'));
-									if (imageSets.has(tweetId)) return;
-									imageSets.set(tweetId, getTweetMediaSrcs(tweetId));
+									if (seenTweets.has(tweetId)) return;
+									seenTweets.add(tweetId);
+									getTweetInfo(tweetId).then(tweetInfo => insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => media.createdAt));
+									if (!currentImage.src) updateImage();
 								});
 							});
 
@@ -176,7 +187,7 @@ window.addEventListener('commonLoaded', () => {
 	let highlightedChannel = 0;
 
 	function updateImage() {
-		currentImage.src = imageSets[currentSet][currentImageIndex];
+		currentImage.src = medias?.[currentSet]?.srcs[currentImageIndex];
 	}
 
 	function toggleOverlay() {
@@ -199,9 +210,8 @@ window.addEventListener('commonLoaded', () => {
 
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
-		imageSets
-			.map(info => info)
-			.flat()
+		medias
+			.map(media => media.srcs[0])
 			.slice(0, 35)
 			.forEach((src) => {
 				const img = document.createElement('img');
@@ -246,7 +256,7 @@ window.addEventListener('commonLoaded', () => {
 
 		switch (e.code) {
 			case 'ArrowRight':
-				if (currentImageIndex < imageSets[currentSet].length - 1) {
+				if (currentImageIndex < medias[currentSet].srcs.length - 1) {
 					currentImageIndex++;
 					updateImage();
 				}
@@ -258,7 +268,7 @@ window.addEventListener('commonLoaded', () => {
 				}
 				break;
 			case 'ArrowDown':
-				if (currentSet < imageSets.length - 1) {
+				if (currentSet < medias.length - 1) {
 					currentSet++;
 					currentImageIndex = 0;
 					updateImage();
@@ -326,6 +336,7 @@ window.addEventListener('commonLoaded', () => {
 		
 		// Create img element for the first set
 		currentImage = document.createElement('img');
+		currentImage.id = 'dqjgkfdjgdsogfdhjfdd';
 		imageContainer.appendChild(currentImage);
 		
 		// Add CSS to make sure the image is fully visible and fills the container
@@ -340,6 +351,7 @@ window.addEventListener('commonLoaded', () => {
 		document.removeEventListener('keydown', handleKeydownEvent);
 		document.addEventListener('keydown', handleKeydownEvent);
 		isNavSysSetup = true;
+		console.log('nav is setup', currentImage);
 	}
 
 	init();

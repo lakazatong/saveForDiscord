@@ -81,6 +81,16 @@ window.uuid ??= generateUUID();
 
 // Utils
 
+// because apparently JS doesn't have this
+function insort(array, obj, getKey = x => x) {
+	let index = array.findIndex(item => getKey(obj) < getKey(item));
+	if (index === -1) {
+		array.push(obj);
+	} else {
+		array.splice(index, 0, obj);
+	}
+}
+
 function getDocumentReady() {
 	return this.readyState === 'interactive' || this.readyState === 'complete';
 }
