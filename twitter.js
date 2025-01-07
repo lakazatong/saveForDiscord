@@ -4,12 +4,52 @@ window.addEventListener('commonLoaded', () => {
 
 	if (window?.twitterInit === true) return;
 
+	const userMediaResponses = [];
+
+	function stripUrlAndAppendFormat(url) {
+		const urlObj = new URL(url);
+		const baseUrl = urlObj.origin + urlObj.pathname;
+		const format = urlObj.searchParams.get('format') || 'png';
+		return `${baseUrl}.${format}`;
+	}
+
+	function extractTweetId(url) {
+		const regex = /(?:https?:\/\/(?:www\.)?x\.com\/|\/)(?:\w+\/)?status\/(\d+)(?:\/|\b)/;
+		const match = url.match(regex);
+		return match ? match[1] : null;
+	}
+
+	async function getTweetImageSrcs(tweetId) {
+		console.log(userMediaResponses);
+		// console.log(`fetching`, `https://twitter.com/i/web/status/${tweetId}`);
+		// const response = await fetch(`https://twitter.com/i/web/status/${tweetId}`, {
+		// 	method: 'GET',
+		// 	headers: {
+		// 		'Accept': 'text/html',
+		// 	}
+		// });
+		// return (new DOMParser().parseFromString(await response.text(), 'text/html')).querySelector('div[data-testid="tweetPhoto"]').map(img => stripUrlAndAppendFormat(img.querySelector('img').getAttribute('src')));
+	}
+
 	// Injection logic
 
 	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
 
-	const images = new Map();
+	const imageSets = new Map();
+
+	function initRequestCatching() {
+		let oldXHROpen = window.XMLHttpRequest.prototype.open;
+		window.XMLHttpRequest.prototype.open = function() {
+			const url = arguments[1];
+			this.addEventListener('load', function() {
+				if (url.startsWith('https://x.com/i/api/graphql/mKl_8lL-ZQO2z-tHVnsetQ/UserMedia')) {
+					userMediaResponses.push(this.responseText);
+				}
+			});
+			return oldXHROpen.apply(this, arguments);
+		};
+	}
 
 	function init() {
 		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
@@ -17,6 +57,8 @@ window.addEventListener('commonLoaded', () => {
 		const marker = document.createElement('div');
 		marker.id = window.uuid;
 		document.body.appendChild(marker);
+
+		initRequestCatching();
 
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
@@ -35,22 +77,20 @@ window.addEventListener('commonLoaded', () => {
 						// remove the content of the media page
 						if (document.location.href.endsWith('media')) {
 							observeNthChild(actualPrimaryColumn, 2, softRemove);
-							setupNavigationSystem(actualPrimaryColumn); // TODO: SET (not ADD) the navigation system
+							setupNavigationSystem(actualPrimaryColumn);
 						}
 
 						// modify timeline's tweets
 						
 						observeNthChild(actualPrimaryColumn, [2, 1, 0], timeLine => {
 							timeLine.querySelectorAll('li[role="listitem"]').forEach(liElement => {
-								const link = liElement.querySelector('a[role="link"]');
-								if (!link) return;
-								const href = link.getAttribute('href');
-								if (!href) return;
-								const hasMultipleImages = link.childElementCount > 1; // has the svg icon indicating it
-								if (!images.has(href)) {
-									images.set(href, { liElement, hasMultipleImages });
-									startObserver(liElement, () => liElement.querySelector('img'), e => e.tagName === 'IMG', e => createImageElement(e.getAttribute('src'), hasMultipleImages)); // TODO: build the new image element here for the navigation system up top
-								}
+								startObserver(liElement, () => liElement.querySelector('img'), e => e.tagName === 'IMG', img => {
+									const src = stripUrlAndAppendFormat(img.getAttribute('src'));
+									if (imageSets.has(src)) return;
+									startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
+										imageSets.set(src, link.querySelector('svg') ? getTweetImageSrcs(extractTweetId(link.getAttribute('href'))) : [src]);
+									});
+								});
 							});
 
 							function modifyTweet() {
@@ -109,74 +149,182 @@ window.addEventListener('commonLoaded', () => {
 		});
 	}
 
+	let overviewGrid;
+	let overlay;
+	let currentImage;
+	let currentSet = 0;
+	let currentImageIndex = 0;
+	let overlayVisible = false;
+	let overviewVisible = false;
+	let highlightedChannel = 0;
+
+	function updateImage() {
+		currentImage.src = imageSets[currentSet][currentImageIndex];
+	}
+
+	function toggleOverlay() {
+		overlayVisible = !overlayVisible;
+		overlay.style.display = overlayVisible ? 'flex' : 'none';
+		if (overlayVisible) {
+			highlightChannel(0);
+		}
+	}
+
+	function toggleOverview() {
+		overviewVisible = !overviewVisible;
+		if (overviewVisible) {
+			renderOverview();
+			overviewGrid.style.display = 'grid';
+		} else {
+			overviewGrid.style.display = 'none';
+		}
+	}
+
+	function renderOverview() {
+		overviewGrid.innerHTML = '';
+		imageSets
+			.map(info => info)
+			.flat()
+			.slice(0, 35)
+			.forEach((src) => {
+				const img = document.createElement('img');
+				img.src = src;
+				overviewGrid.appendChild(img);
+			});
+	}
+
+	function highlightChannel(index) {
+		const channels = document.querySelectorAll('.channel');
+		channels.forEach((channel, i) => {
+			channel.classList.toggle('highlighted', i === index);
+		});
+		highlightedChannel = index;
+	}
+
+	function handleKeydownEvent(e) {
+		if (overlayVisible) {
+			if (e.key === 'ArrowUp') {
+				highlightChannel(Math.max(0, highlightedChannel - 1));
+			} else if (e.key === 'ArrowDown') {
+				highlightChannel(
+					Math.min(
+						document.querySelectorAll('.channel').length - 1,
+						highlightedChannel + 1
+					)
+				);
+			} else if (e.key === 'Enter') {
+				toggleOverlay();
+			}
+			e.preventDefault();
+			return;
+		}
+
+		if (overviewVisible) {
+			if (e.key === 'Escape') {
+				toggleOverview();
+			}
+			e.preventDefault();
+			return;
+		}
+
+		switch (e.code) {
+			case 'ArrowRight':
+				if (currentImageIndex < imageSets[currentSet].length - 1) {
+					currentImageIndex++;
+					updateImage();
+				}
+				break;
+			case 'ArrowLeft':
+				if (currentImageIndex > 0) {
+					currentImageIndex--;
+					updateImage();
+				}
+				break;
+			case 'ArrowDown':
+				if (currentSet < imageSets.length - 1) {
+					currentSet++;
+					currentImageIndex = 0;
+					updateImage();
+				}
+				break;
+			case 'ArrowUp':
+				if (currentSet > 0) {
+					currentSet--;
+					currentImageIndex = 0;
+					updateImage();
+				}
+				break;
+			case 'Space':
+				toggleOverlay();
+				e.preventDefault();
+				break;
+			case 'Escape':
+				toggleOverview();
+				break;
+		}
+	}
+
 	let isNavSysSetup = false;
 	function setupNavigationSystem(column) {
 		if (isNavSysSetup) return;
-		// Example: Create a navigation bar or system
-		const navBar = document.createElement('div');
-		navBar.style.position = 'fixed';
-		navBar.style.top = '0';
-		navBar.style.width = '100%';
-		navBar.style.backgroundColor = '#fff';
-		navBar.style.zIndex = '999';
-		navBar.innerHTML = `
-			<button onclick="scrollToSection('top')">Top</button>
-			<button onclick="scrollToSection('media')">Media</button>
-		`;
-		column.prepend(navBar);
 
-		function scrollToSection(section) {
-			if (section === 'top') {
-				window.scrollTo({ top: 0, behavior: 'smooth' });
-			} else if (section === 'media') {
-				document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: 'smooth' });
-			}
-		}
+		// Create overlay and its channels
+		overlay = document.createElement('div');
+		overlay.classList.add('overlay');
+		overlay.style.position = 'fixed';
+		overlay.style.top = '0';
+		overlay.style.left = '0';
+		overlay.style.right = '0';
+		overlay.style.bottom = '0';
+		overlay.style.display = 'none'; // Initially hidden
+		overlay.style.zIndex = '9999'; // Ensure it's above other elements
+		document.body.appendChild(overlay);
+
+		// Add hardcoded random channels
+		const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
+		channels.forEach(name => {
+			const channelElement = document.createElement('div');
+			channelElement.classList.add('channel');
+			channelElement.textContent = name;
+			overlay.appendChild(channelElement);
+		});
+
+		// Create overview grid
+		overviewGrid = document.createElement('div');
+		overviewGrid.classList.add('overview-grid');
+		overviewGrid.style.display = 'none'; // Initially hidden
+		overviewGrid.style.position = 'fixed';
+		overviewGrid.style.top = '0';
+		overviewGrid.style.left = '0';
+		overviewGrid.style.right = '0';
+		overviewGrid.style.bottom = '0';
+		overviewGrid.style.overflow = 'auto';
+		overviewGrid.style.zIndex = '9998'; // Below overlay
+		document.body.appendChild(overviewGrid);
+
+		// Add the image container
+		const imageContainer = document.createElement('div');
+		imageContainer.id = 'image-container';
+		column.appendChild(imageContainer);
+		
+		// Create img element for the first set
+		currentImage = document.createElement('img');
+		imageContainer.appendChild(currentImage);
+		
+		// Add CSS to make sure the image is fully visible and fills the container
+		imageContainer.style.position = 'relative';
+		imageContainer.style.width = '100vw';
+		imageContainer.style.height = '100vh';
+		imageContainer.style.overflow = 'hidden';
+		currentImage.style.maxWidth = '100%';
+		currentImage.style.maxHeight = '100%';
+		currentImage.style.objectFit = 'contain'; // Ensures the image is fully visible
+
+		document.removeEventListener('keydown', handleKeydownEvent);
+		document.addEventListener('keydown', handleKeydownEvent);
 		isNavSysSetup = true;
 	}
 
-	function stripUrlAndAppendFormat(url) {
-		const urlObj = new URL(url);
-		const baseUrl = urlObj.origin + urlObj.pathname;
-		const format = urlObj.searchParams.get('format') || 'png';
-		return `${baseUrl}.${format}`;
-	}
-
-	const imgSrcs = new Set();
-	function createImageElement(href, hasMultipleImages) {
-		
-		const imgSrc = stripUrlAndAppendFormat(href);
-		if (imgSrcs.has(imgSrc)) return;
-		imgSrcs.add(imgSrc);
-
-		const imgWrapper = document.createElement('div');
-		imgWrapper.className = 'custom-image-wrapper';
-		imgWrapper.style.border = '1px solid #ccc';
-		imgWrapper.style.margin = '10px';
-
-		const imgElement = document.createElement('img');
-		imgElement.src = imgSrc;
-		imgElement.alt = 'Tweet Image';
-		imgElement.style.width = '100%';
-		imgElement.style.height = 'auto';
-
-		if (hasMultipleImages) {
-			const badge = document.createElement('div');
-			badge.innerText = 'Multiple Images';
-			badge.style.position = 'absolute';
-			badge.style.top = '5px';
-			badge.style.right = '5px';
-			badge.style.backgroundColor = '#ff0000';
-			badge.style.color = '#fff';
-			badge.style.padding = '2px 5px';
-			badge.style.borderRadius = '3px';
-			imgWrapper.appendChild(badge);
-		}
-
-		imgWrapper.appendChild(imgElement);
-		document.body.appendChild(imgWrapper);
-	}
-	
 	init();
 
 	window.twitterInit ??= true;

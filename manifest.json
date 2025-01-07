@@ -29,6 +29,7 @@
 	"host_permissions": [
 		"*://www.pixiv.net/*",
 		"*://x.com/*",
+		"*://twitter.com/*",
 		"*://*.pximg.net/*",
 		"*://*.pixiv.cat/*"
 	],
