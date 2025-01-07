@@ -38,19 +38,6 @@ window.addEventListener('commonLoaded', () => {
 
 	const imageSets = new Map();
 
-	function initRequestCatching() {
-		let oldXHROpen = window.XMLHttpRequest.prototype.open;
-		window.XMLHttpRequest.prototype.open = function() {
-			const url = arguments[1];
-			this.addEventListener('load', function() {
-				if (url.startsWith('https://x.com/i/api/graphql/mKl_8lL-ZQO2z-tHVnsetQ/UserMedia')) {
-					userMediaResponses.push(this.responseText);
-				}
-			});
-			return oldXHROpen.apply(this, arguments);
-		};
-	}
-
 	function init() {
 		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
 
@@ -58,7 +45,16 @@ window.addEventListener('commonLoaded', () => {
 		marker.id = window.uuid;
 		document.body.appendChild(marker);
 
-		initRequestCatching();
+		window.addEventListener('message', function (event) {
+			if (event.source == window && event.data && event.data.action == 'UserMediaResponse') {
+				const body = JSON.parse(event.data.body);
+				userMediaResponses.push(body);
+				console.log(body);
+				// if (body.status == 'ok') {
+				// 	console.log('UserMediaResponse', body.data);
+				// }
+			}
+		});
 
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
