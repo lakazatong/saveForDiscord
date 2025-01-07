@@ -103,9 +103,11 @@ window.addEventListener('commonLoaded', () => {
 					observeNthChild(homeTimeline, 0, softRemove);
 					observeNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumn => {
 						// remove the content of the media page
+						document.removeEventListener('keydown', handleKeydownEvent);
 						if (document.location.href.endsWith('media')) {
-							observeNthChild(actualPrimaryColumn, 2, softRemove);
-							setupNavigationSystem(actualPrimaryColumn);
+							startObserver(actualPrimaryColumn, () => actualPrimaryColumn.querySelector('section[role="region"]'), e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region', softRemove);
+							if (medias.length) setupNavigationSystem(actualPrimaryColumn);
+							document.addEventListener('keydown', handleKeydownEvent);
 						}
 
 						// modify timeline's tweets
@@ -116,8 +118,11 @@ window.addEventListener('commonLoaded', () => {
 									const tweetId = extractTweetId(link.getAttribute('href'));
 									if (seenTweets.has(tweetId)) return;
 									seenTweets.add(tweetId);
-									getTweetInfo(tweetId).then(tweetInfo => insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => media.createdAt));
-									if (!currentImage.src) updateImage();
+									getTweetInfo(tweetId).then(tweetInfo => {
+										insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => -media.createdAt)
+										setupNavigationSystem(actualPrimaryColumn);
+									});
+									if (currentImage && (!currentImage.src || currentImage.src.includes('undefined'))) updateImage();
 								});
 							});
 
@@ -185,6 +190,7 @@ window.addEventListener('commonLoaded', () => {
 	let overlayVisible = false;
 	let overviewVisible = false;
 	let highlightedChannel = 0;
+	const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
 
 	function updateImage() {
 		currentImage.src = medias?.[currentSet]?.srcs[currentImageIndex];
@@ -192,9 +198,11 @@ window.addEventListener('commonLoaded', () => {
 
 	function toggleOverlay() {
 		overlayVisible = !overlayVisible;
-		overlay.style.display = overlayVisible ? 'flex' : 'none';
 		if (overlayVisible) {
 			highlightChannel(0);
+			overlay.style.display = 'flex';
+		} else {
+			overlay.style.display = 'none';
 		}
 	}
 
@@ -216,13 +224,16 @@ window.addEventListener('commonLoaded', () => {
 			.forEach((src) => {
 				const img = document.createElement('img');
 				img.src = src;
+				img.style.width = '100%';
+				img.style.height = '100%';
+				img.style.objectFit = 'contain'; // Ensures the lowest dimension fits
+				img.style.display = 'block'; // Removes any unwanted margins/padding
 				overviewGrid.appendChild(img);
 			});
 	}
 
 	function highlightChannel(index) {
-		const channels = document.querySelectorAll('.channel');
-		channels.forEach((channel, i) => {
+		document.querySelectorAll('.channel').forEach((channel, i) => {
 			channel.classList.toggle('highlighted', i === index);
 		});
 		highlightedChannel = index;
@@ -230,24 +241,36 @@ window.addEventListener('commonLoaded', () => {
 
 	function handleKeydownEvent(e) {
 		if (overlayVisible) {
-			if (e.key === 'ArrowUp') {
-				highlightChannel(Math.max(0, highlightedChannel - 1));
-			} else if (e.key === 'ArrowDown') {
-				highlightChannel(
-					Math.min(
-						document.querySelectorAll('.channel').length - 1,
-						highlightedChannel + 1
-					)
-				);
-			} else if (e.key === 'Enter') {
-				toggleOverlay();
+			switch (e.code) {
+				case 'ArrowDown':
+					highlightChannel(
+						Math.min(
+							document.querySelectorAll('.channel').length - 1,
+							highlightedChannel + 1
+						)
+					);
+					e.preventDefault();
+					break;
+				case 'ArrowUp':
+					highlightChannel(Math.max(0, highlightedChannel - 1));
+					e.preventDefault();
+					break;
+				case 'Space':
+				case 'Escape':
+					toggleOverlay();
+					e.preventDefault();
+					break;
+				case 'Enter':
+					console.log('selected channel:', channels[highlightedChannel]);
+					toggleOverlay();
+					e.preventDefault();
+					break;
 			}
-			e.preventDefault();
 			return;
 		}
 
 		if (overviewVisible) {
-			if (e.key === 'Escape') {
+			if (e.code === 'Escape') {
 				toggleOverview();
 			}
 			e.preventDefault();
@@ -260,12 +283,14 @@ window.addEventListener('commonLoaded', () => {
 					currentImageIndex++;
 					updateImage();
 				}
+				e.preventDefault();
 				break;
 			case 'ArrowLeft':
 				if (currentImageIndex > 0) {
 					currentImageIndex--;
 					updateImage();
 				}
+				e.preventDefault();
 				break;
 			case 'ArrowDown':
 				if (currentSet < medias.length - 1) {
@@ -273,6 +298,7 @@ window.addEventListener('commonLoaded', () => {
 					currentImageIndex = 0;
 					updateImage();
 				}
+				e.preventDefault();
 				break;
 			case 'ArrowUp':
 				if (currentSet > 0) {
@@ -280,6 +306,7 @@ window.addEventListener('commonLoaded', () => {
 					currentImageIndex = 0;
 					updateImage();
 				}
+				e.preventDefault();
 				break;
 			case 'Space':
 				toggleOverlay();
@@ -287,71 +314,72 @@ window.addEventListener('commonLoaded', () => {
 				break;
 			case 'Escape':
 				toggleOverview();
+				e.preventDefault();
 				break;
 		}
 	}
 
 	let isNavSysSetup = false;
 	function setupNavigationSystem(column) {
-		if (isNavSysSetup) return;
+		if (!isNavSysSetup) {
+			// Create overlay and its channels
+			overlay = document.createElement('div');
+			overlay.classList.add('overlay');
+			overlay.style.position = 'fixed';
+			overlay.style.top = '0';
+			overlay.style.left = '0';
+			overlay.style.right = '0';
+			overlay.style.bottom = '0';
+			overlay.style.display = 'none'; // Initially hidden
+			overlay.style.zIndex = '9999'; // Ensure it's above other elements
+			document.body.appendChild(overlay);
 
-		// Create overlay and its channels
-		overlay = document.createElement('div');
-		overlay.classList.add('overlay');
-		overlay.style.position = 'fixed';
-		overlay.style.top = '0';
-		overlay.style.left = '0';
-		overlay.style.right = '0';
-		overlay.style.bottom = '0';
-		overlay.style.display = 'none'; // Initially hidden
-		overlay.style.zIndex = '9999'; // Ensure it's above other elements
-		document.body.appendChild(overlay);
+			// Add hardcoded random channels
+			channels.forEach(name => {
+				const channelElement = document.createElement('div');
+				channelElement.classList.add('channel');
+				channelElement.textContent = name;
+				overlay.appendChild(channelElement);
+			});
 
-		// Add hardcoded random channels
-		const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
-		channels.forEach(name => {
-			const channelElement = document.createElement('div');
-			channelElement.classList.add('channel');
-			channelElement.textContent = name;
-			overlay.appendChild(channelElement);
-		});
+			isNavSysSetup = true;
+		}
 
-		// Create overview grid
-		overviewGrid = document.createElement('div');
-		overviewGrid.classList.add('overview-grid');
-		overviewGrid.style.display = 'none'; // Initially hidden
-		overviewGrid.style.position = 'fixed';
-		overviewGrid.style.top = '0';
-		overviewGrid.style.left = '0';
-		overviewGrid.style.right = '0';
-		overviewGrid.style.bottom = '0';
-		overviewGrid.style.overflow = 'auto';
-		overviewGrid.style.zIndex = '9998'; // Below overlay
-		document.body.appendChild(overviewGrid);
-
-		// Add the image container
-		const imageContainer = document.createElement('div');
-		imageContainer.id = 'image-container';
-		column.appendChild(imageContainer);
+		if (!column.querySelector('div[id="image-container"]')) {
+			// Add the image container
+			const imageContainer = document.createElement('div');
+			imageContainer.id = 'image-container';
+			column.appendChild(imageContainer);
+			
+			// Create img element for the first set
+			currentImage = document.createElement('img');
+			imageContainer.appendChild(currentImage);
+			
+			// Add CSS to make sure the image is fully visible and fills the container
+			imageContainer.style.position = 'relative';
+			imageContainer.style.width = '100vw';
+			imageContainer.style.height = '100vh';
+			imageContainer.style.overflow = 'hidden';
+			currentImage.style.maxWidth = '100%';
+			currentImage.style.maxHeight = '100%';
+			currentImage.style.objectFit = 'contain'; // Ensures the image is fully visible
+			updateImage();
 		
-		// Create img element for the first set
-		currentImage = document.createElement('img');
-		currentImage.id = 'dqjgkfdjgdsogfdhjfdd';
-		imageContainer.appendChild(currentImage);
-		
-		// Add CSS to make sure the image is fully visible and fills the container
-		imageContainer.style.position = 'relative';
-		imageContainer.style.width = '100vw';
-		imageContainer.style.height = '100vh';
-		imageContainer.style.overflow = 'hidden';
-		currentImage.style.maxWidth = '100%';
-		currentImage.style.maxHeight = '100%';
-		currentImage.style.objectFit = 'contain'; // Ensures the image is fully visible
-
-		document.removeEventListener('keydown', handleKeydownEvent);
-		document.addEventListener('keydown', handleKeydownEvent);
-		isNavSysSetup = true;
-		console.log('nav is setup', currentImage);
+			// Create overview grid alongside currentImage
+			overviewGrid = document.createElement('div');
+			overviewGrid.classList.add('overview-grid');
+			overviewGrid.style.position = 'absolute';
+			overviewGrid.style.top = '0';
+			overviewGrid.style.left = '0';
+			overviewGrid.style.right = '0';
+			overviewGrid.style.bottom = '0';
+			overviewGrid.style.overflow = 'auto';
+			overviewGrid.style.display = 'grid';
+			overviewGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(100px, 1fr))';
+			overviewGrid.style.gridGap = '10px';
+			overviewGrid.style.zIndex = '9998'; // Below overlay
+			imageContainer.appendChild(overviewGrid);
+		}
 	}
 
 	init();
