@@ -6,15 +6,25 @@ function inject(tabId, files) {
 	function executeFile(index) {
 		if (index >= files.length) return;
 		console.log('injecting', files[index], 'into', tabId);
-		chrome.scripting.executeScript({
-			target: { tabId },
-			files: [files[index]]
-		}, () => {
-			executeFile(index + 1);
-		});
+		if (files[index].endsWith('.css')) {
+			chrome.scripting.insertCSS({
+				target: { tabId },
+				files: [files[index]]
+			}, () => {
+				executeFile(index + 1);
+			});
+		} else {
+			chrome.scripting.executeScript({
+				target: { tabId },
+				files: [files[index]]
+			}, () => {
+				executeFile(index + 1);
+			});
+		}
 	}
 	executeFile(0);
 }
+
 
 const contentScriptsConfig = [
 	{
@@ -32,7 +42,7 @@ const contentScriptsConfig = [
 					document.head.appendChild(script);
 				}
 			});
-			inject(tab.id, ['twitter.js', 'common.js']);
+			inject(tab.id, ['twitterStyles.css', 'twitter.js', 'common.js']);
 		},
 	},
 ];

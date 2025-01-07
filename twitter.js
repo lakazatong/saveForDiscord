@@ -6,6 +6,11 @@ window.addEventListener('commonLoaded', () => {
 
 	const catchedTweets = [];
 
+	function getRootDims() {
+		const reactRoot = document.getElementById('react-root');
+		return [reactRoot.offsetWidth, reactRoot.offsetHeight];
+	}
+
 	function stripUrlAndAppendFormat(url) {
 		const urlObj = new URL(url);
 		const baseUrl = urlObj.origin + urlObj.pathname;
@@ -102,6 +107,20 @@ window.addEventListener('commonLoaded', () => {
 					// sticky top back and follow button with tweeter profile's name and posts count
 					observeNthChild(homeTimeline, 0, softRemove);
 					observeNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumn => {
+						observeNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
+							// profile banner
+							observeNthChild(topActualPrimaryColumn, 0, softRemove);
+							observeNthChild(topActualPrimaryColumn, 1, presentation => {
+								presentation.style.margin = '0px';
+								presentation.style.padding = '0px';
+							});
+						});
+						// profile pp
+						observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
+						// hacky but it works
+						const actualPrimaryColumnWidth = `${getRootDims()[0]}px`;
+						actualPrimaryColumn.style.width = actualPrimaryColumnWidth;
+						actualPrimaryColumn.style.maxWidth = actualPrimaryColumnWidth;
 						// remove the content of the media page
 						document.removeEventListener('keydown', handleKeydownEvent);
 						if (document.location.href.endsWith('media')) {
@@ -111,7 +130,6 @@ window.addEventListener('commonLoaded', () => {
 						}
 
 						// modify timeline's tweets
-						
 						observeNthChild(actualPrimaryColumn, [2, 1, 0], timeLine => {
 							timeLine.querySelectorAll('li[role="listitem"]').forEach(liElement => {
 								startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
@@ -119,7 +137,7 @@ window.addEventListener('commonLoaded', () => {
 									if (seenTweets.has(tweetId)) return;
 									seenTweets.add(tweetId);
 									getTweetInfo(tweetId).then(tweetInfo => {
-										insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => -media.createdAt)
+										insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => media.createdAt)
 										setupNavigationSystem(actualPrimaryColumn);
 									});
 									if (currentImage && (!currentImage.src || currentImage.src.includes('undefined'))) updateImage();
@@ -163,19 +181,6 @@ window.addEventListener('commonLoaded', () => {
 
 							modifyTweet();
 						});
-
-						actualPrimaryColumn.style.width = '100vw';
-						actualPrimaryColumn.style.maxWidth = '100vw';
-						observeNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
-							// profile banner
-							observeNthChild(topActualPrimaryColumn, 0, softRemove);
-							observeNthChild(topActualPrimaryColumn, 1, presentation => {
-								presentation.style.margin = '0px';
-								presentation.style.padding = '0px';
-							});
-						});
-						// profile pp
-						observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
 					})
 				});
 			});
@@ -185,6 +190,7 @@ window.addEventListener('commonLoaded', () => {
 	let overviewGrid;
 	let overlay;
 	let currentImage;
+	let imageContainer;
 	let currentSet = 0;
 	let currentImageIndex = 0;
 	let overlayVisible = false;
@@ -211,23 +217,28 @@ window.addEventListener('commonLoaded', () => {
 		if (overviewVisible) {
 			renderOverview();
 			overviewGrid.style.display = 'grid';
+			currentImage.style.display = 'none';
 		} else {
 			overviewGrid.style.display = 'none';
+			currentImage.style.removeProperty('display');
 		}
 	}
-
+	
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
 		medias
 			.map(media => media.srcs[0])
-			.slice(0, 35)
+			.slice(0, 50)
 			.forEach((src) => {
 				const img = document.createElement('img');
 				img.src = src;
 				img.style.width = '100%';
 				img.style.height = '100%';
-				img.style.objectFit = 'contain'; // Ensures the lowest dimension fits
-				img.style.display = 'block'; // Removes any unwanted margins/padding
+				img.style.maxWidth = '100%';
+				img.style.maxHeight = '100%';
+				img.style.objectFit = 'cover';
+				img.style.objectPosition = 'center';
+				img.style.margin = '2px';
 				overviewGrid.appendChild(img);
 			});
 	}
@@ -330,11 +341,10 @@ window.addEventListener('commonLoaded', () => {
 			overlay.style.left = '0';
 			overlay.style.right = '0';
 			overlay.style.bottom = '0';
-			overlay.style.display = 'none'; // Initially hidden
-			overlay.style.zIndex = '9999'; // Ensure it's above other elements
+			overlay.style.display = 'none';
+			overlay.style.zIndex = '9999';
 			document.body.appendChild(overlay);
 
-			// Add hardcoded random channels
 			channels.forEach(name => {
 				const channelElement = document.createElement('div');
 				channelElement.classList.add('channel');
@@ -346,40 +356,43 @@ window.addEventListener('commonLoaded', () => {
 		}
 
 		if (!column.querySelector('div[id="image-container"]')) {
-			// Add the image container
-			const imageContainer = document.createElement('div');
+			imageContainer = document.createElement('div');
+			imageContainer.style.userSelect = 'none';
 			imageContainer.id = 'image-container';
 			column.appendChild(imageContainer);
 			
-			// Create img element for the first set
 			currentImage = document.createElement('img');
+			currentImage.style.userSelect = 'none';
 			imageContainer.appendChild(currentImage);
 			
-			// Add CSS to make sure the image is fully visible and fills the container
 			imageContainer.style.position = 'relative';
-			imageContainer.style.width = '100vw';
-			imageContainer.style.height = '100vh';
 			imageContainer.style.overflow = 'hidden';
 			currentImage.style.maxWidth = '100%';
 			currentImage.style.maxHeight = '100%';
-			currentImage.style.objectFit = 'contain'; // Ensures the image is fully visible
+			currentImage.style.objectFit = 'contain';
 			updateImage();
 		
-			// Create overview grid alongside currentImage
 			overviewGrid = document.createElement('div');
-			overviewGrid.classList.add('overview-grid');
-			overviewGrid.style.position = 'absolute';
+			overviewGrid.style.userSelect = 'none';
+			overviewGrid.style.position = 'relative';
+			overviewGrid.style.width = '100vw';
+			overviewGrid.style.height = '100vh';
+			overviewGrid.style.overflow = 'hidden';
+			overviewGrid.style.display = 'grid';
+			overviewGrid.style.gridTemplateColumns = 'repeat(10, 1fr)';
+			overviewGrid.style.gridTemplateRows = 'repeat(5, 1fr)';
+			overviewGrid.style.gap = '2px';
 			overviewGrid.style.top = '0';
 			overviewGrid.style.left = '0';
 			overviewGrid.style.right = '0';
 			overviewGrid.style.bottom = '0';
-			overviewGrid.style.overflow = 'auto';
-			overviewGrid.style.display = 'grid';
-			overviewGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(100px, 1fr))';
-			overviewGrid.style.gridGap = '10px';
-			overviewGrid.style.zIndex = '9998'; // Below overlay
 			imageContainer.appendChild(overviewGrid);
 		}
+
+		// always update the dimensions
+		const [imageContainerWidth, imageContainerHeight] = getRootDims();
+		imageContainer.style.width = `${imageContainerWidth}px`;
+		imageContainer.style.height = `${imageContainerHeight}px`;
 	}
 
 	init();
