@@ -413,6 +413,7 @@ window.addEventListener('commonLoaded', () => {
 			mediaElement.src = newCur.src;
 			mediaElement.controls = true;
 			mediaElement.autoplay = true;
+			mediaElement.loop = true;
 			mediaElement.setAttribute('tabindex', '0');
 			mediaElement.style.width = newCur.width;
 			mediaElement.style.height = newCur.height;
