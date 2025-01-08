@@ -49,7 +49,8 @@ window.addEventListener('commonLoaded', () => {
 				});
 			});
 		}
-		if (tweetInfo.legacy.entities.media[0].type !== 'photo') return tweetInfo;
+		// if (tweetInfo.legacy.entities.media[0].type !== 'photo') return tweetInfo;
+		return tweetInfo;
 	}
 
 	function getTweetMedias(tweetInfo) {
@@ -339,7 +340,7 @@ window.addEventListener('commonLoaded', () => {
 
 		switch (e.code) {
 			case 'ArrowRight':
-				if (currentMediaIndex < tweetsMedias[currentTweetIndex].medias.srcs.length - 1) {
+				if (currentMediaIndex < tweetsMedias[currentTweetIndex].medias.length - 1) {
 					currentMediaIndex++;
 					updateMedia();
 				}
