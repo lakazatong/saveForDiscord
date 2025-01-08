@@ -280,22 +280,22 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	const currentOverviewMedia = () => tweetsMedias[currentOverviewTweetIndex.tweetIndex].medias[mediaIndex.get(currentOverviewTweetIndex.tweetIndex)];
+	const currentOverviewMedia = () => tweetsMedias[overviewTweetIndex.index].medias[mediaIndex.get(overviewTweetIndex.index)];
 	function updateOverviewMedia() {
-		overviewGrid.children[currentOverviewTweetIndex.get()].querySelector('img').src = currentOverviewMedia().src;
+		overviewGrid.children[overviewTweetIndex.get()].querySelector('img').src = currentOverviewMedia().src;
 	}
 
-	const currentOverviewTweetIndex = {
-		tweetIndex: 0,
+	const overviewTweetIndex = {
+		index: 0,
 		batchIndex: 0,
 		get() {
-			return this.tweetIndex % overviewGridSize;
+			return this.index % overviewGridSize;
 		},
 		set(newIndex) {
-			if (newIndex === this.tweetIndex) return;
-			const oldIndex = this.tweetIndex;
-			this.tweetIndex = newIndex;
-			const newBatchIndex = Math.floor(this.tweetIndex / overviewGridSize);
+			if (newIndex === this.index) return;
+			const oldIndex = this.index;
+			this.index = newIndex;
+			const newBatchIndex = Math.floor(this.index / overviewGridSize);
 			
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
@@ -308,33 +308,33 @@ window.addEventListener('commonLoaded', () => {
 			}
 		},
 		left() {
-			this.set(this.tweetIndex === 0 ? tweetsMedias.length - 1 : this.tweetIndex - 1);
+			this.set(this.index === 0 ? tweetsMedias.length - 1 : this.index - 1);
 		},
 		right() {
-			this.set(this.tweetIndex === tweetsMedias.length - 1 ? 0 : this.tweetIndex + 1);
+			this.set(this.index === tweetsMedias.length - 1 ? 0 : this.index + 1);
 		},
 		up() {
-			if (this.tweetIndex < overviewGridWidth) {
+			if (this.index < overviewGridWidth) {
 				let newIndex = tweetsMedias.length - 1;
 				const left = newIndex % overviewGridWidth;
-				this.set(newIndex - Math.max(0, left - this.tweetIndex));
+				this.set(newIndex - Math.max(0, left - this.index));
 			} else {
-				this.set(this.tweetIndex - overviewGridWidth);
+				this.set(this.index - overviewGridWidth);
 			}
 		},
 		down() {
-			if (this.tweetIndex >= (tweetsMedias.length - (tweetsMedias.length % overviewGridWidth))) {
-				this.set(this.tweetIndex % overviewGridWidth);
+			if (this.index >= (tweetsMedias.length - (tweetsMedias.length % overviewGridWidth))) {
+				this.set(this.index % overviewGridWidth);
 			} else {
-				this.set(Math.min(this.tweetIndex + overviewGridWidth, tweetsMedias.length - 1));
+				this.set(Math.min(this.index + overviewGridWidth, tweetsMedias.length - 1));
 			}
 		}
 	};
 
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
-		const highlightedIndex = currentOverviewTweetIndex.get();
-		const start = currentOverviewTweetIndex.batchIndex * overviewGridSize;
+		const highlightedIndex = overviewTweetIndex.get();
+		const start = overviewTweetIndex.batchIndex * overviewGridSize;
 		const end = start + overviewGridSize;
 		tweetsMedias
 			.slice(start, end)
@@ -425,21 +425,21 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	function handleOverviewKeydownEvent(e) {
-		const index = currentOverviewTweetIndex.tweetIndex;
+		const index = overviewTweetIndex.index;
 		switch (e.code) {
 			case 'ArrowDown':
-				currentOverviewTweetIndex.down();
+				overviewTweetIndex.down();
 				e.preventDefault();
 				break;
 			case 'ArrowUp':
-				currentOverviewTweetIndex.up();
+				overviewTweetIndex.up();
 				e.preventDefault();
 				break;
 			case 'ArrowRight':
 				if (e.shiftKey) {
 					if (mediaIndex.get(index) < tweetsMedias[index].medias.length - 1) mediaIndex.increment(index, updateOverviewMedia);
 				} else {
-					currentOverviewTweetIndex.right();
+					overviewTweetIndex.right();
 				}
 				e.preventDefault();
 				break;
@@ -447,12 +447,12 @@ window.addEventListener('commonLoaded', () => {
 				if (e.shiftKey) {
 					if (mediaIndex.get(index) > 0) mediaIndex.decrement(index, updateOverviewMedia);
 				} else {
-					currentOverviewTweetIndex.left();
+					overviewTweetIndex.left();
 				}
 				e.preventDefault();
 				break;
 			case 'Enter':
-				tweetIndex = currentOverviewTweetIndex.tweetIndex;
+				tweetIndex = overviewTweetIndex.index;
 				updateMedia();
 				toggleOverview();
 				e.preventDefault();
@@ -523,7 +523,7 @@ window.addEventListener('commonLoaded', () => {
 					e.preventDefault();
 					break;
 				case toggleOverviewKeyCode:
-					toggleOverview(!currentOverviewTweetIndex.set(tweetIndex));
+					toggleOverview(!overviewTweetIndex.set(tweetIndex));
 					e.preventDefault();
 					break;
 			}
