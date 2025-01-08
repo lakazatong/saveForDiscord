@@ -10,6 +10,12 @@ window.addEventListener('commonLoaded', () => {
 		const reactRoot = document.getElementById('react-root');
 		return [reactRoot.offsetWidth - 1, reactRoot.offsetHeight - 1];
 	}
+	
+	function updateReactRootDims() {
+		const reactRoot = document.getElementById('react-root');
+		reactRoot.style.setProperty('--overview-grid-image-width', `${Math.floor((reactRoot.offsetWidth - 1) / 10)}px`);
+		reactRoot.style.setProperty('--overview-grid-image-height', `${Math.floor((reactRoot.offsetHeight - 1) / 5)}px`);
+	}
 
 	function stripUrlAndAppendFormat(url) {
 		const urlObj = new URL(url);
@@ -74,6 +80,9 @@ window.addEventListener('commonLoaded', () => {
 		const marker = document.createElement('div');
 		marker.id = window.uuid;
 		document.body.appendChild(marker);
+
+		window.addEventListener('resize', updateReactRootDims);
+		new ResizeObserver(updateReactRootDims).observe(document.getElementById('react-root'));
 
 		window.addEventListener('message', function (event) {
 			if (event.source == window && event.data && event.data.action == 'UserMediaResponse') {
@@ -225,9 +234,9 @@ window.addEventListener('commonLoaded', () => {
 	}
 	
 	function renderOverview() {
-		const [reactRootWidth,reactRootHeight] = getReactRootDims();
-		const gridImagesMaxWidth = Math.floor(reactRootWidth / 10);
-		const gridImagesMaxHeight = Math.floor(reactRootHeight / 5);
+		// const [reactRootWidth, reactRootHeight] = getReactRootDims();
+		// const gridImagesMaxWidth = Math.floor(reactRootWidth / 10);
+		// const gridImagesMaxHeight = Math.floor(reactRootHeight / 5);
 		overviewGrid.innerHTML = '';
 		medias
 			.map(media => media.srcs[0])
@@ -235,14 +244,16 @@ window.addEventListener('commonLoaded', () => {
 			.forEach((src) => {
 				const img = document.createElement('img');
 				img.src = src;
-				img.style.width = `100%`;
-				img.style.maxWidth = `${gridImagesMaxWidth}px`;
-				img.style.height = `100%`;
-				img.style.maxHeight = `${gridImagesMaxHeight}px`;
-				img.style.objectFit = 'cover';
-				img.style.margin = '0';
+				img.classList.add('overview-grid-image');
+				// img.style.width = `100%`;
+				// img.style.maxWidth = `${gridImagesMaxWidth}px`;
+				// img.style.height = `100%`;
+				// img.style.maxHeight = `${gridImagesMaxHeight}px`;
+				// img.style.objectFit = 'cover';
+				// img.style.margin = '0';
 				overviewGrid.appendChild(img);
 			});
+		updateReactRootDims();
 	}
 
 	function highlightChannel(index) {
@@ -384,7 +395,7 @@ window.addEventListener('commonLoaded', () => {
 			overviewGrid.style.display = 'grid';
 			overviewGrid.style.gridTemplateColumns = 'repeat(10, 1fr)';
 			overviewGrid.style.gridTemplateRows = 'repeat(5, 1fr)';
-			overviewGrid.style.gap = '0';
+			overviewGrid.style.gap = '2px';
 			imageContainer.appendChild(overviewGrid);
 
 			updateImage();

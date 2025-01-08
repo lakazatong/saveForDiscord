@@ -1,3 +1,17 @@
 *:focus {
 	outline: 0px;
 }
+
+#react-root {
+	--overview-grid-image-width: 100%;
+	--overview-grid-image-height: 100%;
+}
+
+.overview-grid-image {
+	width: 100%;
+	max-width: var(--overview-grid-image-width);
+	height: 100%;
+	max-height: var(--overview-grid-image-height);
+	object-fit: cover;
+	margin: 0;
+}
