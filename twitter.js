@@ -215,9 +215,9 @@ window.addEventListener('commonLoaded', () => {
 	function toggleOverview() {
 		overviewVisible = !overviewVisible;
 		if (overviewVisible) {
-			renderOverview();
 			overviewGrid.style.display = 'grid';
 			currentImage.style.display = 'none';
+			renderOverview();
 		} else {
 			overviewGrid.style.display = 'none';
 			currentImage.style.removeProperty('display');
@@ -225,6 +225,9 @@ window.addEventListener('commonLoaded', () => {
 	}
 	
 	function renderOverview() {
+		const [reactRootWidth,reactRootHeight] = getReactRootDims();
+		const gridImagesMaxWidth = Math.floor(reactRootWidth / 10);
+		const gridImagesMaxHeight = Math.floor(reactRootHeight / 5);
 		overviewGrid.innerHTML = '';
 		medias
 			.map(media => media.srcs[0])
@@ -232,12 +235,12 @@ window.addEventListener('commonLoaded', () => {
 			.forEach((src) => {
 				const img = document.createElement('img');
 				img.src = src;
-				img.style.width = '100%';
-				img.style.height = '100%';
+				img.style.width = `100%`;
+				img.style.maxWidth = `${gridImagesMaxWidth}px`;
+				img.style.height = `100%`;
+				img.style.maxHeight = `${gridImagesMaxHeight}px`;
 				img.style.objectFit = 'cover';
-				img.style.objectPosition = 'center';
 				img.style.margin = '0';
-				img.style.display = 'block';
 				overviewGrid.appendChild(img);
 			});
 	}
@@ -372,16 +375,16 @@ window.addEventListener('commonLoaded', () => {
 			
 			overviewGrid = document.createElement('div');
 			overviewGrid.style.userSelect = 'none';
-			overviewGrid.style.position = 'relative';
-			overviewGrid.style.overflow = 'hidden';
+			overviewGrid.style.width = '100%';
+			overviewGrid.style.maxWidth = '100%';
+			overviewGrid.style.height = '100%';
+			overviewGrid.style.maxHeight = '100%';
+			overviewGrid.style.objectFit = 'contain';
+
 			overviewGrid.style.display = 'grid';
 			overviewGrid.style.gridTemplateColumns = 'repeat(10, 1fr)';
 			overviewGrid.style.gridTemplateRows = 'repeat(5, 1fr)';
-			overviewGrid.style.gap = '2px';
-			overviewGrid.style.top = '0';
-			overviewGrid.style.left = '0';
-			overviewGrid.style.right = '0';
-			overviewGrid.style.bottom = '0';
+			overviewGrid.style.gap = '0';
 			imageContainer.appendChild(overviewGrid);
 
 			updateImage();
