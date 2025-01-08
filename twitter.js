@@ -261,31 +261,71 @@ window.addEventListener('commonLoaded', () => {
 	function toggleOverview() {
 		overviewVisible = !overviewVisible;
 		if (overviewVisible) {
-			overviewGrid.style.display = 'grid';
-			// not to lose focus with display: none
-			mediaElement.style.position = 'absolute';
-			mediaElement.style.left = '-9999px';
-			
 			renderOverview();
+
+			mediaElement.style.display = 'none';
+			overviewGrid.style.display = 'grid';
+
+			overviewGrid.addEventListener('keydown', handleKeydownEvent);
+			overviewGrid.focus();
 		} else {
 			overviewGrid.style.display = 'none';
-			mediaElement.style.position = 'static';
-			mediaElement.style.removeProperty('left');
+			mediaElement.style.removeProperty('display');
+
+			mediaElement.addEventListener('keydown', handleKeydownEvent);
+			mediaElement.focus();
 		}
 	}
-		
+
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
 		const start = overviewBatchIndex * overviewGridWidth * overviewGridHeight;
 		const end = start + overviewGridWidth * overviewGridHeight;
 		tweetsMedias
-			.map(tweet => tweet.medias[0].preview)
 			.slice(start, end)
-			.forEach(src => {
+			.forEach(tweet => {
+				const media = tweet.medias[0];
+				const container = document.createElement('div');
+				container.style.display = 'contents';
+				container.style.position = 'relative';
+				container.style.display = 'inline-block';
+
 				const img = document.createElement('img');
-				img.src = src;
+				img.src = media.preview;
 				img.classList.add('overview-grid-image');
-				overviewGrid.appendChild(img);
+				container.appendChild(img);
+				
+				img.addEventListener('load', () => {
+					if (media.type === 'video') {
+						const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+						svg.setAttribute('width', '20%');
+						svg.setAttribute('padding-top', '20%');
+						svg.setAttribute('viewBox', '0 0 20 20');
+						svg.setAttribute('fill', 'white');
+						svg.style.position = 'absolute';
+						svg.style.top = '50%';
+						svg.style.left = '50%';
+						svg.style.transform = 'translate(-50%, -50%)';
+						svg.style.borderRadius = '50%';
+						svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+						svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
+						container.appendChild(svg);
+					}
+
+					if (tweet.medias.length > 1) {
+						const counterSpan = document.createElement('span');
+						counterSpan.setAttribute('width', '25%');
+						counterSpan.setAttribute('height', 'auto');
+						counterSpan.textContent = `1/${tweet.medias.length}`;
+						counterSpan.style.position = 'absolute';
+						counterSpan.style.bottom = '5%';
+						counterSpan.style.right = '7%';
+						counterSpan.style.color = 'white';
+						container.appendChild(counterSpan);
+					}
+				});
+
+				overviewGrid.appendChild(container);
 			});
 		updateReactRootDims();
 	}
@@ -424,36 +464,32 @@ window.addEventListener('commonLoaded', () => {
 
 	function setupMediaElement(newCur) {
 		mediaElement?.remove();
+		
 		if (newCur.type === 'video') {
 			mediaType = 'video';
 			mediaElement = document.createElement('video');
 
-			mediaElement.src = newCur.src;
 			mediaElement.controls = true;
 			mediaElement.autoplay = true;
 			mediaElement.loop = true;
-			mediaElement.setAttribute('tabindex', '0');
 			mediaElement.style.width = newCur.width;
 			mediaElement.style.height = newCur.height;
-
-			mediaElement.addEventListener('keydown', handleKeydownEvent);
-			mediaContainer.appendChild(mediaElement);
-			mediaElement.focus();
 		} else {
 			mediaType = 'photo';
 			mediaElement = document.createElement('img');
-
-			mediaElement.src = newCur.src;
-			mediaElement.setAttribute('tabindex', '0');
-
-			mediaElement.addEventListener('keydown', handleKeydownEvent);
-			mediaContainer.appendChild(mediaElement);
-			mediaElement.focus();
 		}
+
+		mediaElement.src = newCur.src;
+		mediaElement.setAttribute('tabindex', '0');
+
 		mediaElement.style.maxWidth = '100%';
 		mediaElement.style.maxHeight = '100%';
 		mediaElement.style.objectFit = 'contain';
 		mediaElement.style.border = '0';
+
+		mediaElement.addEventListener('keydown', handleKeydownEvent);
+		mediaContainer.appendChild(mediaElement);
+		mediaElement.focus();
 	}
 
 	let isNavSysSetup = false;
@@ -484,7 +520,6 @@ window.addEventListener('commonLoaded', () => {
 		if (!column.querySelector('div[id="media-container"]')) {
 
 			mediaContainer = document.createElement('div');
-			// mediaContainer.style.userSelect = 'none';
 			mediaContainer.id = 'media-container';
 			mediaContainer.style.position = 'relative';
 			mediaContainer.style.overflow = 'hidden';
@@ -493,7 +528,7 @@ window.addEventListener('commonLoaded', () => {
 			updateMedia(true);
 
 			overviewGrid = document.createElement('div');
-			// overviewGrid.style.userSelect = 'none';
+			overviewGrid.setAttribute('tabindex', '0');
 			overviewGrid.style.objectFit = 'contain';
 			overviewGrid.style.display = 'none';
 			overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
