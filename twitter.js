@@ -153,7 +153,6 @@ window.addEventListener('commonLoaded', () => {
 										insort(tweetsMedias, { createdAt: getTweetCreatedAt(tweetInfo), medias: getTweetMedias(tweetInfo) }, media => -media.createdAt)
 										setupNavigationSystem(actualPrimaryColumn);
 									});
-									if (mediaElement && mediaElement.src.includes('undefined')) updateMedia();
 								});
 							});
 
@@ -221,12 +220,11 @@ window.addEventListener('commonLoaded', () => {
 	const currentMedia = () => tweetsMedias?.[currentTweetIndex]?.medias[currentMediaIndex];
 	function updateMedia(forceSetup = false) {
 		const newCur = currentMedia();
-		if (forceSetup || newCur.type !== mediaType) {
+		if (!newCur) return;
+		if (forceSetup || !mediaElement || newCur.type !== mediaType) {
 			setupMediaElement(newCur);
-			console.log('updateMedia: changed media type');
 		} else {
 			mediaElement.src = newCur.src;
-			console.log('updateMedia: changed src');
 		}
 	}
 
@@ -369,15 +367,8 @@ window.addEventListener('commonLoaded', () => {
 				}
 				e.preventDefault();
 				break;
-			case toggleChannelsKeyCode:
-				toggleChannels();
-				e.preventDefault();
-				break;
-			case toggleOverviewKeyCode:
-				toggleOverview();
-				e.preventDefault();
-				break;
 		}
+
 		if (mediaType === 'video') {
 			switch (e.code) {
 				case toggleVideoFullScreenKeyCode:
@@ -386,6 +377,27 @@ window.addEventListener('commonLoaded', () => {
 					} else {
 						mediaElement.requestFullscreen();
 					}
+					e.preventDefault();
+					break;
+				case toggleChannelsKeyCode:
+					if (document.fullscreenElement) break;
+					toggleChannels();
+					e.preventDefault();
+					break;
+				case toggleOverviewKeyCode:
+					if (document.fullscreenElement) break;
+					toggleOverview();
+					e.preventDefault();
+					break;
+			}
+		} else {
+			switch (e.code) {
+				case toggleChannelsKeyCode:
+					toggleChannels();
+					e.preventDefault();
+					break;
+				case toggleOverviewKeyCode:
+					toggleOverview();
 					e.preventDefault();
 					break;
 			}
@@ -401,7 +413,7 @@ window.addEventListener('commonLoaded', () => {
 			mediaElement.src = newCur.src;
 			mediaElement.controls = true;
 			mediaElement.autoplay = true;
-			mediaElement.tabIndex = 0
+			mediaElement.setAttribute('tabindex', '0');
 			mediaElement.style.width = newCur.width;
 			mediaElement.style.height = newCur.height;
 
@@ -413,7 +425,7 @@ window.addEventListener('commonLoaded', () => {
 			mediaElement = document.createElement('img');
 
 			mediaElement.src = newCur.src;
-			mediaElement.tabindex = '0';
+			mediaElement.setAttribute('tabindex', '0');
 
 			mediaElement.addEventListener('keydown', handleKeydownEvent);
 			mediaContainer.appendChild(mediaElement);
