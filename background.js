@@ -2,11 +2,13 @@
 
 // Injection logic
 
+const injectedFiles = {};
 function inject(tabId, files) {
 	function executeFile(index) {
 		if (index >= files.length) return;
 		console.log('injecting', files[index], 'into', tabId);
 		if (files[index].endsWith('.css')) {
+			injectedFiles[files[index]] = Date.now();
 			chrome.scripting.insertCSS({
 				target: { tabId },
 				files: [files[index]]
@@ -22,9 +24,24 @@ function inject(tabId, files) {
 			});
 		}
 	}
-	executeFile(0);
-}
 
+	executeFile(0);
+
+	setInterval(() => {
+		files.forEach(file => {
+			if (file.endsWith('.css')) {
+				let currentModificationTime = Date.now();
+				if (injectedFiles[file] && injectedFiles[file] !== currentModificationTime) {
+					chrome.scripting.insertCSS({
+						target: { tabId },
+						files: [file]
+					});
+					injectedFiles[file] = currentModificationTime;
+				}
+			}
+		});
+	}, 500);
+}
 
 const contentScriptsConfig = [
 	{

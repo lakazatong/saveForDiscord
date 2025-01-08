@@ -16,3 +16,9 @@
 	object-fit: cover;
 	margin: 0;
 }
+
+.overview-highlighted {
+	transform: scale(1.2);
+	z-index: 1;
+	border: 2px solid black;
+}

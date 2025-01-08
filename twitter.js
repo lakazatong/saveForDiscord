@@ -202,6 +202,7 @@ window.addEventListener('commonLoaded', () => {
 	let overviewGrid;
 	const overviewGridWidth = 7;
 	const overviewGridHeight = 4;
+	const overviewGridSize = overviewGridWidth * overviewGridHeight;
 	let overviewBatchIndex = 0;
 	let overlay;
 	let mediaType;
@@ -277,18 +278,64 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
+	const overviewGridIndex = {
+		tweetIndex: 0,
+		batchIndex: 0,
+		set(newIndex) {
+			if (newIndex === this.tweetIndex) return;
+			const oldIndex = this.tweetIndex;
+			this.tweetIndex = newIndex;
+			const newBatchIndex = Math.floor(this.tweetIndex / overviewGridSize);
+			
+			if (newBatchIndex !== this.batchIndex) {
+				this.batchIndex = newBatchIndex;
+				renderOverview();
+			} else {
+				overviewGrid.children[oldIndex % overviewGridSize].classList.remove('overview-highlighted');
+				overviewGrid.children[this.tweetIndex % overviewGridSize].classList.add('overview-highlighted');
+			}
+		},
+		left() {
+			this.set(this.tweetIndex === 0 ? tweetsMedias.length - 1 : this.tweetIndex - 1);
+		},
+		right() {
+			this.set(this.tweetIndex === tweetsMedias.length - 1 ? 0 : this.tweetIndex + 1);
+		},
+		up() {
+			if (this.tweetIndex < overviewGridWidth) {
+				let newIndex = tweetsMedias.length - 1;
+				const left = newIndex % overviewGridWidth;
+				this.set(newIndex - Math.max(0, left - this.tweetIndex));
+			} else {
+				this.set(this.tweetIndex - overviewGridWidth);
+			}
+		},
+		down() {
+			if (this.tweetIndex >= (tweetsMedias.length - (tweetsMedias.length % overviewGridWidth))) {
+				this.set(this.tweetIndex % overviewGridWidth);
+			} else {
+				this.set(Math.min(this.tweetIndex + overviewGridWidth, tweetsMedias.length - 1));
+			}
+		}
+	};
+
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
-		const start = overviewBatchIndex * overviewGridWidth * overviewGridHeight;
-		const end = start + overviewGridWidth * overviewGridHeight;
+		const highlightedIndex = overviewGridIndex.tweetIndex % overviewGridSize;
+		const start = overviewGridIndex.batchIndex * overviewGridSize;
+		const end = start + overviewGridSize;
 		tweetsMedias
 			.slice(start, end)
-			.forEach(tweet => {
+			.forEach((tweet, index) => {
 				const media = tweet.medias[0];
 				const container = document.createElement('div');
 				container.style.display = 'contents';
 				container.style.position = 'relative';
 				container.style.display = 'inline-block';
+
+				if (index === highlightedIndex) {
+					container.classList.add('overview-highlighted');
+				}
 
 				const img = document.createElement('img');
 				img.src = media.preview;
@@ -337,65 +384,69 @@ window.addEventListener('commonLoaded', () => {
 		highlightedChannel = index;
 	}
 
+	function handleOverlayKeydownEvent(e) {
+		switch (e.code) {
+			case 'ArrowDown':
+				highlightChannel(
+					Math.min(
+						document.querySelectorAll('.channel').length - 1,
+						highlightedChannel + 1
+					)
+				);
+				e.preventDefault();
+				break;
+			case 'ArrowUp':
+				highlightChannel(Math.max(0, highlightedChannel - 1));
+				e.preventDefault();
+				break;
+			case 'Enter':
+				console.log('selected channel:', channels[highlightedChannel]);
+				toggleChannels();
+				e.preventDefault();
+				break;
+			case toggleChannelsKeyCode:
+			case 'Escape':
+				toggleChannels();
+				e.preventDefault();
+				break;
+		}
+	}
+
+	function handleOverviewKeydownEvent(e) {
+		switch (e.code) {
+			case 'ArrowDown':
+				overviewGridIndex.down();
+				e.preventDefault();
+				break;
+			case 'ArrowUp':
+				overviewGridIndex.up();
+				e.preventDefault();
+				break;
+			case 'ArrowRight':
+				overviewGridIndex.right();
+				e.preventDefault();
+				break;
+			case 'ArrowLeft':
+				overviewGridIndex.left();
+				e.preventDefault();
+				break;
+			case 'Enter':
+				console.log('selected item:', overviewGrid.children[overviewGridIndex.tweetIndex % overviewGridSize]);
+				e.preventDefault();
+				break;
+			case toggleOverviewKeyCode:
+			case 'Escape':
+				toggleOverview();
+				e.preventDefault();
+				break;
+		}
+	}
+
 	function handleKeydownEvent(e) {
 		// console.log(e.code);
-		if (overlayVisible) {
-			switch (e.code) {
-				case 'ArrowDown':
-					highlightChannel(
-						Math.min(
-							document.querySelectorAll('.channel').length - 1,
-							highlightedChannel + 1
-						)
-					);
-					e.preventDefault();
-					break;
-				case 'ArrowUp':
-					highlightChannel(Math.max(0, highlightedChannel - 1));
-					e.preventDefault();
-					break;
-				case 'Enter':
-					console.log('selected channel:', channels[highlightedChannel]);
-					toggleChannels();
-					e.preventDefault();
-					break;
-				case toggleChannelsKeyCode:
-				case 'Escape':
-					toggleChannels();
-					e.preventDefault();
-					break;
-			}
-			return;
-		}
-
-		if (overviewVisible) {
-			switch (e.code) {
-				case 'ArrowDown':
-					if (
-						(overviewBatchIndex + 1) * overviewGridWidth * overviewGridHeight <
-						tweetsMedias.length
-					) {
-						overviewBatchIndex++;
-						renderOverview();
-					}
-					e.preventDefault();
-					break;
-				case 'ArrowUp':
-					if (overviewBatchIndex > 0) {
-						overviewBatchIndex--;
-						renderOverview();
-					}
-					e.preventDefault();
-					break;
-				case toggleOverviewKeyCode:
-				case 'Escape':
-					toggleOverview();
-					e.preventDefault();
-					break;
-			}
-			return;
-		}
-
+		if (overlayVisible) return handleOverlayKeydownEvent(e);
+		if (overviewVisible) return handleOverviewKeydownEvent(e);
+		
 		switch (e.code) {
 			case 'ArrowRight':
 				if (currentMediaIndex.get() < tweetsMedias[currentTweetIndex].medias.length - 1) {
