@@ -204,7 +204,9 @@ window.addEventListener('commonLoaded', () => {
 	const overviewGridHeight = 4;
 	const overviewGridSize = overviewGridWidth * overviewGridHeight;
 	let overviewBatchIndex = 0;
+
 	let overlay;
+	
 	let mediaType;
 	let mediaElement;
 	let mediaContainer;
@@ -222,12 +224,15 @@ window.addEventListener('commonLoaded', () => {
 				currentMediaIndices.push(0);
 			}
 			currentMediaIndices[currentTweetIndex] = value;
+			updateMedia();
 		},
 		increment() {
 			this.set(this.get() + 1);
+			updateMedia();
 		},
 		decrement() {
 			this.set(this.get() - 1);
+			updateMedia();
 		}
 	};
 	let overlayVisible = false;
@@ -431,7 +436,10 @@ window.addEventListener('commonLoaded', () => {
 				e.preventDefault();
 				break;
 			case 'Enter':
-				console.log('selected item:', overviewGrid.children[overviewGridIndex.tweetIndex % overviewGridSize]);
+				toggleOverview();
+				currentTweetIndex = overviewGridIndex.tweetIndex;
+				// currentMediaIndex.set(overviewGridIndex.mediaIndex);
+				updateMedia();
 				e.preventDefault();
 				break;
 			case toggleOverviewKeyCode:
@@ -449,17 +457,11 @@ window.addEventListener('commonLoaded', () => {
 		
 		switch (e.code) {
 			case 'ArrowRight':
-				if (currentMediaIndex.get() < tweetsMedias[currentTweetIndex].medias.length - 1) {
-					currentMediaIndex.increment();
-					updateMedia();
-				}
+				if (currentMediaIndex.get() < tweetsMedias[currentTweetIndex].medias.length - 1) currentMediaIndex.increment();
 				e.preventDefault();
 				break;
 			case 'ArrowLeft':
-				if (currentMediaIndex.get() > 0) {
-					currentMediaIndex.decrement();
-					updateMedia();
-				}
+				if (currentMediaIndex.get() > 0) currentMediaIndex.decrement();
 				e.preventDefault();
 				break;
 			case 'ArrowDown':
