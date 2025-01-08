@@ -208,7 +208,27 @@ window.addEventListener('commonLoaded', () => {
 	let mediaElement;
 	let mediaContainer;
 	let currentTweetIndex = 0;
-	let currentMediaIndex = 0;
+	const currentMediaIndices = [];
+	const currentMediaIndex = {
+		get() {
+			while (currentTweetIndex >= currentMediaIndices.length) {
+				currentMediaIndices.push(0);
+			}
+			return currentMediaIndices[currentTweetIndex];
+		},
+		set(value) {
+			while (currentTweetIndex >= currentMediaIndices.length) {
+				currentMediaIndices.push(0);
+			}
+			currentMediaIndices[currentTweetIndex] = value;
+		},
+		increment() {
+			this.set(this.get() + 1);
+		},
+		decrement() {
+			this.set(this.get() - 1);
+		}
+	};
 	let overlayVisible = false;
 	let overviewVisible = false;
 	let highlightedChannel = 0;
@@ -217,7 +237,7 @@ window.addEventListener('commonLoaded', () => {
 	const toggleOverviewKeyCode = 'KeyV';
 	const toggleVideoFullScreenKeyCode = 'KeyF';
 
-	const currentMedia = () => tweetsMedias?.[currentTweetIndex]?.medias[currentMediaIndex];
+	const currentMedia = () => tweetsMedias?.[currentTweetIndex]?.medias[currentMediaIndex.get()];
 	function updateMedia(forceSetup = false) {
 		const newCur = currentMedia();
 		if (!newCur) return;
@@ -338,15 +358,15 @@ window.addEventListener('commonLoaded', () => {
 
 		switch (e.code) {
 			case 'ArrowRight':
-				if (currentMediaIndex < tweetsMedias[currentTweetIndex].medias.length - 1) {
-					currentMediaIndex++;
+				if (currentMediaIndex.get() < tweetsMedias[currentTweetIndex].medias.length - 1) {
+					currentMediaIndex.increment();
 					updateMedia();
 				}
 				e.preventDefault();
 				break;
 			case 'ArrowLeft':
-				if (currentMediaIndex > 0) {
-					currentMediaIndex--;
+				if (currentMediaIndex.get() > 0) {
+					currentMediaIndex.decrement();
 					updateMedia();
 				}
 				e.preventDefault();
@@ -354,7 +374,6 @@ window.addEventListener('commonLoaded', () => {
 			case 'ArrowDown':
 				if (currentTweetIndex < tweetsMedias.length - 1) {
 					currentTweetIndex++;
-					currentMediaIndex = 0;
 					updateMedia();
 				}
 				e.preventDefault();
@@ -362,7 +381,6 @@ window.addEventListener('commonLoaded', () => {
 			case 'ArrowUp':
 				if (currentTweetIndex > 0) {
 					currentTweetIndex--;
-					currentMediaIndex = 0;
 					updateMedia();
 				}
 				e.preventDefault();
