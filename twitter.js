@@ -282,7 +282,13 @@ window.addEventListener('commonLoaded', () => {
 
 	const currentOverviewMedia = () => tweetsMedias[overviewTweetIndex.index].medias[mediaIndex.get(overviewTweetIndex.index)];
 	function updateOverviewMedia() {
-		overviewGrid.children[overviewTweetIndex.get()].querySelector('img').src = currentOverviewMedia().src;
+		const medias = tweetsMedias[overviewTweetIndex.index].medias;
+		const index = mediaIndex.get(overviewTweetIndex.index);
+		const container = overviewGrid.children[overviewTweetIndex.get()];
+		container.querySelector('img').src = medias[index].src;
+		const counter = container.querySelector('span');
+		if (!counter) return;
+		counter.textContent = `${index + 1}/${medias.length}`;
 	}
 
 	const overviewTweetIndex = {
@@ -302,8 +308,8 @@ window.addEventListener('commonLoaded', () => {
 				renderOverview();
 				return true;
 			} else {
-				overviewGrid.children[oldIndex % overviewGridSize].classList.remove('overview-highlighted');
-				overviewGrid.children[this.get()].classList.add('overview-highlighted');
+				overviewGrid.children[oldIndex % overviewGridSize]?.classList.remove('overview-highlighted');
+				overviewGrid.children[this.get()]?.classList.add('overview-highlighted');
 				return false;
 			}
 		},
@@ -372,17 +378,17 @@ window.addEventListener('commonLoaded', () => {
 					}
 
 					if (tweet.medias.length > 1) {
-						const counterSpan = document.createElement('span');
-						counterSpan.setAttribute('width', '25%');
-						counterSpan.setAttribute('height', 'auto');
-						counterSpan.textContent = `1/${tweet.medias.length}`;
-						counterSpan.style.position = 'absolute';
-						counterSpan.style.bottom = '5%';
-						counterSpan.style.right = '7%';
-						counterSpan.style.color = 'white';
-						container.appendChild(counterSpan);
+						const counter = document.createElement('span');
+						counter.setAttribute('width', '25%');
+						counter.setAttribute('height', 'auto');
+						counter.textContent = `${tweet.cur + 1}/${tweet.medias.length}`;
+						counter.style.position = 'absolute';
+						counter.style.bottom = '5%';
+						counter.style.right = '7%';
+						counter.style.color = 'white';
+						container.appendChild(counter);
 					}
-				});
+				}, { once: true });
 
 				overviewGrid.appendChild(container);
 			});
