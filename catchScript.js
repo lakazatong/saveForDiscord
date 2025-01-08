@@ -24,7 +24,7 @@ function reduceForRegex(inputString, targetString) {
 		.then(body => {
 			code = userMediaRegex.exec(reduceForRegex(body, 'UserMedia'))[1];
 		})
-		.catch(error => console.error('Error fetching script:', error));
+		.catch(err => { });
 
 	const originalOpen = XMLHttpRequest.prototype.open;
 	XMLHttpRequest.prototype.open = function (method, url) {

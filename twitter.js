@@ -49,7 +49,7 @@ window.addEventListener('commonLoaded', () => {
 				});
 			});
 		}
-		return tweetInfo;
+		if (tweetInfo.legacy.entities.media[0].type !== 'photo') return tweetInfo;
 	}
 
 	function getTweetMedias(tweetInfo) {
@@ -89,7 +89,7 @@ window.addEventListener('commonLoaded', () => {
 		new ResizeObserver(updateReactRootDims).observe(document.getElementById('react-root'));
 
 		window.addEventListener('message', function (event) {
-			if (event.source == window && event.data && event.data.action == 'UserMediaResponse') {
+			if (event.source == window && event.data && event.data.action === 'UserMediaResponse') {
 				const body = JSON.parse(event.data.body);
 				// console.log('UserMediaResponse', body);
 				const instructions = body.data.user.result.timeline_v2.timeline.instructions;
@@ -148,6 +148,7 @@ window.addEventListener('commonLoaded', () => {
 									if (seenTweets.has(tweetId)) return;
 									seenTweets.add(tweetId);
 									getTweetInfo(tweetId).then(tweetInfo => {
+										if (!tweetInfo) return;
 										insort(tweetsMedias, { createdAt: getTweetCreatedAt(tweetInfo), medias: getTweetMedias(tweetInfo) }, media => -media.createdAt)
 										setupNavigationSystem(actualPrimaryColumn);
 									});
@@ -214,14 +215,17 @@ window.addEventListener('commonLoaded', () => {
 	const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
 	const toggleChannelsKeyCode = 'KeyC';
 	const toggleOverviewKeyCode = 'KeyV';
+	const toggleVideoFullScreenKeyCode = 'KeyF';
 
 	const currentMedia = () => tweetsMedias?.[currentTweetIndex]?.medias[currentMediaIndex];
 	function updateMedia(forceSetup = false) {
 		const newCur = currentMedia();
 		if (forceSetup || newCur.type !== mediaType) {
 			setupMediaElement(newCur);
+			console.log('updateMedia: changed media type');
 		} else {
 			mediaElement.src = newCur.src;
+			console.log('updateMedia: changed src');
 		}
 	}
 
@@ -373,41 +377,51 @@ window.addEventListener('commonLoaded', () => {
 				e.preventDefault();
 				break;
 		}
+		if (mediaType === 'video') {
+			switch (e.code) {
+				case toggleVideoFullScreenKeyCode:
+					if (document.fullscreenElement) {
+						document.exitFullscreen();
+					} else {
+						mediaElement.requestFullscreen();
+					}
+					e.preventDefault();
+					break;
+			}
+		}
 	}
 
 	function setupMediaElement(newCur) {
 		mediaElement?.remove();
 		if (newCur.type === 'video') {
 			mediaType = 'video';
-			mediaElement = document.createElement('iframe');
+			mediaElement = document.createElement('video');
 
-			mediaElement.setAttribute('frameborder', '0');
-			mediaElement.setAttribute('allowfullscreen', '');
-			mediaElement.setAttribute('width', newCur.width);
-			mediaElement.setAttribute('height', newCur.height);
-			// console.log(mediaElement);
-			// console.log(mediaElement.contentWindow);
-			// console.log(mediaElement.contentWindow.document);
-			// console.log(mediaElement.contentWindow.document.body);
+			mediaElement.src = newCur.src;
+			mediaElement.controls = true;
+			mediaElement.autoplay = true;
+			mediaElement.tabIndex = 0
+			mediaElement.style.width = newCur.width;
+			mediaElement.style.height = newCur.height;
 
 			mediaElement.addEventListener('keydown', handleKeydownEvent);
 			mediaContainer.appendChild(mediaElement);
-			// mediaElement.contentWindow.document.body.focus();
 			mediaElement.focus();
 		} else {
 			mediaType = 'photo';
 			mediaElement = document.createElement('img');
 
-			mediaElement.setAttribute('tabindex', '0');
+			mediaElement.src = newCur.src;
+			mediaElement.tabindex = '0';
 
 			mediaElement.addEventListener('keydown', handleKeydownEvent);
 			mediaContainer.appendChild(mediaElement);
 			mediaElement.focus();
 		}
-		mediaElement.src = newCur.src;
 		mediaElement.style.maxWidth = '100%';
 		mediaElement.style.maxHeight = '100%';
 		mediaElement.style.objectFit = 'contain';
+		mediaElement.style.border = '0';
 	}
 
 	let isNavSysSetup = false;
