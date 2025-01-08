@@ -150,7 +150,7 @@ window.addEventListener('commonLoaded', () => {
 									seenTweets.add(tweetId);
 									getTweetInfo(tweetId).then(tweetInfo => {
 										if (!tweetInfo) return;
-										insort(tweetsMedias, { createdAt: getTweetCreatedAt(tweetInfo), medias: getTweetMedias(tweetInfo) }, media => -media.createdAt)
+										insort(tweetsMedias, { createdAt: getTweetCreatedAt(tweetInfo), medias: getTweetMedias(tweetInfo), cur: 0 }, media => -media.createdAt);
 										setupNavigationSystem(actualPrimaryColumn);
 									});
 								});
@@ -210,29 +210,22 @@ window.addEventListener('commonLoaded', () => {
 	let mediaType;
 	let mediaElement;
 	let mediaContainer;
-	let currentTweetIndex = 0;
-	const currentMediaIndices = [];
-	const currentMediaIndex = {
-		get() {
-			while (currentTweetIndex >= currentMediaIndices.length) {
-				currentMediaIndices.push(0);
-			}
-			return currentMediaIndices[currentTweetIndex];
+	let tweetIndex = 0;
+	const mediaIndex = {
+		get(index) {
+			return tweetsMedias[index].cur;
 		},
-		set(value) {
-			while (currentTweetIndex >= currentMediaIndices.length) {
-				currentMediaIndices.push(0);
-			}
-			currentMediaIndices[currentTweetIndex] = value;
-			updateMedia();
+		set(value, index, update) {
+			tweetsMedias[index].cur = value;
+			update();
 		},
-		increment() {
-			this.set(this.get() + 1);
-			updateMedia();
+		increment(index, update) {
+			tweetsMedias[index].cur++;
+			update();
 		},
-		decrement() {
-			this.set(this.get() - 1);
-			updateMedia();
+		decrement(index, update) {
+			tweetsMedias[index].cur--;
+			update();
 		}
 	};
 	let overlayVisible = false;
@@ -243,7 +236,11 @@ window.addEventListener('commonLoaded', () => {
 	const toggleOverviewKeyCode = 'KeyV';
 	const toggleVideoFullScreenKeyCode = 'KeyF';
 
-	const currentMedia = () => tweetsMedias?.[currentTweetIndex]?.medias[currentMediaIndex.get()];
+	const currentMedia = function () {
+		const tweet = tweetsMedias?.[tweetIndex];
+		if (!tweet) return;
+		return tweet.medias[tweet.cur];
+	}
 	function updateMedia(forceSetup = false) {
 		const newCur = currentMedia();
 		if (!newCur) return;
@@ -264,10 +261,10 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function toggleOverview() {
+	function toggleOverview(shouldRender = true) {
 		overviewVisible = !overviewVisible;
 		if (overviewVisible) {
-			renderOverview();
+			if (shouldRender) renderOverview();
 
 			mediaElement.style.display = 'none';
 			overviewGrid.style.display = 'grid';
@@ -283,9 +280,17 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	const overviewGridIndex = {
+	const currentOverviewMedia = () => tweetsMedias[currentOverviewTweetIndex.tweetIndex].medias[mediaIndex.get(currentOverviewTweetIndex.tweetIndex)];
+	function updateOverviewMedia() {
+		overviewGrid.children[currentOverviewTweetIndex.get()].querySelector('img').src = currentOverviewMedia().src;
+	}
+
+	const currentOverviewTweetIndex = {
 		tweetIndex: 0,
 		batchIndex: 0,
+		get() {
+			return this.tweetIndex % overviewGridSize;
+		},
 		set(newIndex) {
 			if (newIndex === this.tweetIndex) return;
 			const oldIndex = this.tweetIndex;
@@ -295,9 +300,11 @@ window.addEventListener('commonLoaded', () => {
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
 				renderOverview();
+				return true;
 			} else {
 				overviewGrid.children[oldIndex % overviewGridSize].classList.remove('overview-highlighted');
-				overviewGrid.children[this.tweetIndex % overviewGridSize].classList.add('overview-highlighted');
+				overviewGrid.children[this.get()].classList.add('overview-highlighted');
+				return false;
 			}
 		},
 		left() {
@@ -326,13 +333,13 @@ window.addEventListener('commonLoaded', () => {
 
 	function renderOverview() {
 		overviewGrid.innerHTML = '';
-		const highlightedIndex = overviewGridIndex.tweetIndex % overviewGridSize;
-		const start = overviewGridIndex.batchIndex * overviewGridSize;
+		const highlightedIndex = currentOverviewTweetIndex.get();
+		const start = currentOverviewTweetIndex.batchIndex * overviewGridSize;
 		const end = start + overviewGridSize;
 		tweetsMedias
 			.slice(start, end)
 			.forEach((tweet, index) => {
-				const media = tweet.medias[0];
+				const media = tweet.medias[mediaIndex.get(start + index)];
 				const container = document.createElement('div');
 				container.style.display = 'contents';
 				container.style.position = 'relative';
@@ -418,28 +425,36 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	function handleOverviewKeydownEvent(e) {
+		const index = currentOverviewTweetIndex.tweetIndex;
 		switch (e.code) {
 			case 'ArrowDown':
-				overviewGridIndex.down();
+				currentOverviewTweetIndex.down();
 				e.preventDefault();
 				break;
 			case 'ArrowUp':
-				overviewGridIndex.up();
+				currentOverviewTweetIndex.up();
 				e.preventDefault();
 				break;
 			case 'ArrowRight':
-				overviewGridIndex.right();
+				if (e.shiftKey) {
+					if (mediaIndex.get(index) < tweetsMedias[index].medias.length - 1) mediaIndex.increment(index, updateOverviewMedia);
+				} else {
+					currentOverviewTweetIndex.right();
+				}
 				e.preventDefault();
 				break;
 			case 'ArrowLeft':
-				overviewGridIndex.left();
+				if (e.shiftKey) {
+					if (mediaIndex.get(index) > 0) mediaIndex.decrement(index, updateOverviewMedia);
+				} else {
+					currentOverviewTweetIndex.left();
+				}
 				e.preventDefault();
 				break;
 			case 'Enter':
-				toggleOverview();
-				currentTweetIndex = overviewGridIndex.tweetIndex;
-				// currentMediaIndex.set(overviewGridIndex.mediaIndex);
+				tweetIndex = currentOverviewTweetIndex.tweetIndex;
 				updateMedia();
+				toggleOverview();
 				e.preventDefault();
 				break;
 			case toggleOverviewKeyCode:
@@ -457,23 +472,23 @@ window.addEventListener('commonLoaded', () => {
 		
 		switch (e.code) {
 			case 'ArrowRight':
-				if (currentMediaIndex.get() < tweetsMedias[currentTweetIndex].medias.length - 1) currentMediaIndex.increment();
+				if (mediaIndex.get(tweetIndex) < tweetsMedias[tweetIndex].medias.length - 1) mediaIndex.increment(tweetIndex, updateMedia);
 				e.preventDefault();
 				break;
 			case 'ArrowLeft':
-				if (currentMediaIndex.get() > 0) currentMediaIndex.decrement();
+				if (mediaIndex.get(tweetIndex) > 0) mediaIndex.decrement(tweetIndex, updateMedia);
 				e.preventDefault();
 				break;
 			case 'ArrowDown':
-				if (currentTweetIndex < tweetsMedias.length - 1) {
-					currentTweetIndex++;
+				if (tweetIndex < tweetsMedias.length - 1) {
+					tweetIndex++;
 					updateMedia();
 				}
 				e.preventDefault();
 				break;
 			case 'ArrowUp':
-				if (currentTweetIndex > 0) {
-					currentTweetIndex--;
+				if (tweetIndex > 0) {
+					tweetIndex--;
 					updateMedia();
 				}
 				e.preventDefault();
@@ -508,7 +523,7 @@ window.addEventListener('commonLoaded', () => {
 					e.preventDefault();
 					break;
 				case toggleOverviewKeyCode:
-					toggleOverview();
+					toggleOverview(!currentOverviewTweetIndex.set(tweetIndex));
 					e.preventDefault();
 					break;
 			}
