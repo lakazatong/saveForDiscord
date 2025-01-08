@@ -13,8 +13,8 @@ window.addEventListener('commonLoaded', () => {
 	
 	function updateReactRootDims() {
 		const reactRoot = document.getElementById('react-root');
-		reactRoot.style.setProperty('--overview-grid-image-width', `${Math.floor((reactRoot.offsetWidth - 1) / 10)}px`);
-		reactRoot.style.setProperty('--overview-grid-image-height', `${Math.floor((reactRoot.offsetHeight - 1) / 5)}px`);
+		reactRoot?.style.setProperty('--overview-grid-image-width', `${Math.floor((reactRoot.offsetWidth - 1) / overviewGridWidth)}px`);
+		reactRoot?.style.setProperty('--overview-grid-image-height', `${Math.floor((reactRoot.offsetHeight - 1) / overviewGridHeight)}px`);
 	}
 
 	function stripUrlAndAppendFormat(url) {
@@ -146,7 +146,7 @@ window.addEventListener('commonLoaded', () => {
 									if (seenTweets.has(tweetId)) return;
 									seenTweets.add(tweetId);
 									getTweetInfo(tweetId).then(tweetInfo => {
-										insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => media.createdAt)
+										insort(medias, { createdAt: getTweetCreatedAt(tweetInfo), srcs: getTweetMediaSrcs(tweetInfo) }, media => -media.createdAt)
 										setupNavigationSystem(actualPrimaryColumn);
 									});
 									if (currentImage && (!currentImage.src || currentImage.src.includes('undefined'))) updateImage();
@@ -197,6 +197,9 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	let overviewGrid;
+	const overviewGridWidth = 7;
+	const overviewGridHeight = 4;
+	let overviewBatchIndex = 0;
 	let overlay;
 	let currentImage;
 	let imageContainer;
@@ -232,25 +235,18 @@ window.addEventListener('commonLoaded', () => {
 			currentImage.style.removeProperty('display');
 		}
 	}
-	
+		
 	function renderOverview() {
-		// const [reactRootWidth, reactRootHeight] = getReactRootDims();
-		// const gridImagesMaxWidth = Math.floor(reactRootWidth / 10);
-		// const gridImagesMaxHeight = Math.floor(reactRootHeight / 5);
 		overviewGrid.innerHTML = '';
+		const start = overviewBatchIndex * overviewGridWidth * overviewGridHeight;
+		const end = start + overviewGridWidth * overviewGridHeight;
 		medias
-			.map(media => media.srcs[0])
-			.slice(0, 50)
+			.map((media) => media.srcs[0])
+			.slice(start, end)
 			.forEach((src) => {
 				const img = document.createElement('img');
 				img.src = src;
 				img.classList.add('overview-grid-image');
-				// img.style.width = `100%`;
-				// img.style.maxWidth = `${gridImagesMaxWidth}px`;
-				// img.style.height = `100%`;
-				// img.style.maxHeight = `${gridImagesMaxHeight}px`;
-				// img.style.objectFit = 'cover';
-				// img.style.margin = '0';
 				overviewGrid.appendChild(img);
 			});
 		updateReactRootDims();
@@ -294,10 +290,29 @@ window.addEventListener('commonLoaded', () => {
 		}
 
 		if (overviewVisible) {
-			if (e.code === 'Escape') {
-				toggleOverview();
+			switch (e.code) {
+				case 'ArrowDown':
+					if (
+						(overviewBatchIndex + 1) * overviewGridWidth * overviewGridHeight <
+						medias.length
+					) {
+						overviewBatchIndex++;
+						renderOverview();
+					}
+					e.preventDefault();
+					break;
+				case 'ArrowUp':
+					if (overviewBatchIndex > 0) {
+						overviewBatchIndex--;
+						renderOverview();
+					}
+					e.preventDefault();
+					break;
+				case 'Escape':
+					toggleOverview();
+					e.preventDefault();
+					break;
 			}
-			e.preventDefault();
 			return;
 		}
 
@@ -393,8 +408,8 @@ window.addEventListener('commonLoaded', () => {
 			overviewGrid.style.objectFit = 'contain';
 
 			overviewGrid.style.display = 'grid';
-			overviewGrid.style.gridTemplateColumns = 'repeat(10, 1fr)';
-			overviewGrid.style.gridTemplateRows = 'repeat(5, 1fr)';
+			overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
+			overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
 			overviewGrid.style.gap = '2px';
 			imageContainer.appendChild(overviewGrid);
 
