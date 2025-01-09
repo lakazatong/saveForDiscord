@@ -308,9 +308,19 @@ window.addEventListener('commonLoaded', () => {
 				this.batchIndex = newBatchIndex;
 				renderOverview();
 			} else {
-				overviewMediaContainer?.classList.remove('overview-highlighted');
+				overviewMediaContainer.classList.remove('overview-highlighted');
+				let elm = overviewMediaContainer.querySelector('video');
+				if (elm) {
+					elm.pause();
+					addPlayIcon(overviewMediaContainer);
+				}
 				overviewMediaContainer = overviewGrid.children[overviewTweetIndex.get()];
 				overviewMediaContainer.classList.add('overview-highlighted');
+				elm = overviewMediaContainer.querySelector('video');
+				if (elm) {
+					elm.play();
+					overviewMediaContainer.querySelector('svg').remove();
+				}
 			}
 		},
 		left() {
@@ -338,21 +348,23 @@ window.addEventListener('commonLoaded', () => {
 		}
 	};
 
-	// if (media.type === 'video') {
-	// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-	// 	svg.setAttribute('width', '20%');
-	// 	svg.setAttribute('padding-top', '20%');
-	// 	svg.setAttribute('viewBox', '0 0 20 20');
-	// 	svg.setAttribute('fill', 'white');
-	// 	svg.style.position = 'absolute';
-	// 	svg.style.top = '50%';
-	// 	svg.style.left = '50%';
-	// 	svg.style.transform = 'translate(-50%, -50%)';
-	// 	svg.style.borderRadius = '50%';
-	// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-	// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
-	// 	container.appendChild(svg);
-	// }
+	function addPlayIcon(container) {
+		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		svg.setAttribute('width', '20%');
+		svg.setAttribute('padding-top', '20%');
+		svg.setAttribute('viewBox', '0 0 20 20');
+		svg.setAttribute('fill', 'white');
+		svg.style.position = 'absolute';
+		svg.style.top = '50%';
+		svg.style.left = '50%';
+		svg.style.transform = 'translate(-50%, -50%)';
+		svg.style.borderRadius = '50%';
+		svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+		svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
+		container.appendChild(svg);
+		return svg;
+	}
+
 	function addCounter(container) {
 		const counter = document.createElement('span');
 		counter.setAttribute('width', '25%');
@@ -365,66 +377,103 @@ window.addEventListener('commonLoaded', () => {
 		return counter;
 	}
 
-	function setupOverviewMediaElement(container, tweet) {
-		const medias = tweet.medias;
-		const media = medias[tweet.cur];
-		
-		let elm = container.querySelector(media.type === 'photo' ? 'img' : 'video');
-		if (elm) {
-			let counter = container.querySelector('span');
-			if (medias.length > 1) {
-				if (!counter) counter = addCounter(container);
-				counter.textContent = `${tweet.cur + 1}/${medias.length}`;
-			} else {
-				counter?.remove();
-			}
-		} else {
-			container.innerHTML = '';
-			elm = media.type === 'photo' ? document.createElement('img') : newVideoMediaElement();
-			elm.classList.add('overview-grid-image');
-			if (medias.length > 1) elm.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata', () => {
-				addCounter(container).textContent = `${tweet.cur + 1}/${medias.length}`;
-			}, { once: true });
-			container.appendChild(elm);
-		}
+	function setupOverviewMediaElement(container, tweet, isSelected, mark = false) {
+		return new Promise((resolve) => {
+			const medias = tweet.medias;
+			const media = medias[tweet.cur];
+			const uuid = mark ? generateUUID() : undefined;
 
-		elm.src = media.src;
+			let elm;
+			if (media.type === 'photo') {
+				elm = document.createElement('img');
+				elm.src = media.src;
+			} else {
+				elm = newVideoMediaElement();
+				elm.src = media.src;
+				if (isSelected) {
+					elm.play();
+				} else {
+					const playIcon = addPlayIcon(container);
+					if (mark) playIcon.setAttribute('data-uuid', uuid);
+				}
+			}
+
+			elm.classList.add('overview-grid-image');
+			if (mark) elm.setAttribute('data-uuid', uuid);
+			container.appendChild(elm);
+
+			if (medias.length > 1) {
+				elm.addEventListener(
+					media.type === 'photo' ? 'load' : 'loadedmetadata',
+					() => {
+						const counter = addCounter(container);
+						counter.textContent = `${tweet.cur + 1}/${medias.length}`;
+						if (mark) counter.setAttribute('data-uuid', uuid);
+						resolve(uuid);
+					},
+					{ once: true }
+				);
+			} else {
+				resolve(uuid);
+			}
+		});
 	}
 
 	function renderOverview() {
 		const start = overviewTweetIndex.batchIndex * overviewGridSize;
 		const end = Math.min(start + overviewGridSize, mediaCount);
-		let index = start;
-		let localIndex;
-		for (; index < end; index++) {
-			localIndex = index % overviewGridSize;
+		let i = start;
+		for (; i < end; i++) {
+			const index = i;
+			const localIndex = index % overviewGridSize;
 			if (tweetsMediasSubscribers.get(localIndex)) tweetsMediasSubscribers.delete(localIndex);
-			let tweet = tweets?.[index];
+			const tweet = tweets?.[index];
 			const container = overviewGrid.children[localIndex];
+			let tmp = false;
 			if (index === overviewTweetIndex.index) {
+				tmp = true;
 				container.classList.add('overview-highlighted');
 				overviewMediaContainer = container;
 			} else {
 				container.classList.remove('overview-highlighted');
 			}
+			const isSelected = tmp;
+			container.innerHTML = '';
 			if (tweet) {
-				setupOverviewMediaElement(container, tweet);
+				setupOverviewMediaElement(container, tweet, isSelected);
 				continue;
 			}
-			container.innerHTML = '';
 			tweetsMediasSubscribers.set(localIndex, function (newTweet) {
-				tweet = tweets?.[index];
-				if (!tweet) return;
+				const t = tweets?.[index];
+				if (!t) return;
 				tweetsMediasSubscribers.delete(localIndex);
-				setupOverviewMediaElement(container, tweet);
+				setupOverviewMediaElement(container, t, isSelected);
 			});
 		}
-		while (++localIndex < overviewGridSize) {
-			const container = overviewGrid.children[localIndex];
-			container.innerHTML = '';
-			container.classList.remove('overview-highlighted');
+		i %= overviewGridSize;
+		if (i > 0) {
+			while (i < overviewGridSize) {
+				const container = overviewGrid.children[i++];
+				container.innerHTML = '';
+				container.classList.remove('overview-highlighted');
+			}
 		}
 		updateReactRootDims();
+	}
+
+	async function updateOverviewMedia() {
+		const container = overviewMediaContainer;
+		const tweet = tweets[overviewTweetIndex.index];
+
+		const uuid = await setupOverviewMediaElement(container, tweet, true, true);
+
+		Array.from(container.querySelectorAll(`:scope > *`)).forEach((child) => {
+			if (child.getAttribute('data-uuid') === uuid) {
+				child.removeAttribute('data-uuid');
+			} else {
+				container.removeChild(child);
+			}
+		});
 	}
 
 	function highlightChannel(index) {
@@ -460,10 +509,6 @@ window.addEventListener('commonLoaded', () => {
 				e.preventDefault();
 				break;
 		}
-	}
-
-	function updateOverviewMedia() {
-		setupOverviewMediaElement(overviewMediaContainer, tweets[overviewTweetIndex.index]);
 	}
 
 	function handleOverviewKeydownEvent(e) {
@@ -575,7 +620,7 @@ window.addEventListener('commonLoaded', () => {
 
 	function newVideoMediaElement() {
 		const r = document.createElement('video');
-		r.controls = r.autoplay = r.loop = true;
+		r.controls = r.loop = true;
 		return r;
 	}
 
@@ -659,7 +704,7 @@ window.addEventListener('commonLoaded', () => {
 			overviewGrid.style.display = 'none';
 			overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
 			overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
-			overviewGrid.style.gap = '2px';
+			overviewGrid.style.gridGap = '2px';
 
 			setupOverviewGrid();
 
