@@ -22,8 +22,10 @@ window.addEventListener('commonLoaded', () => {
 	
 	function updateReactRootDims() {
 		const reactRoot = document.getElementById('react-root');
-		reactRoot?.style.setProperty('--overview-grid-image-width', `${Math.floor((reactRoot.offsetWidth - 1) / overviewGridWidth)}px`);
-		reactRoot?.style.setProperty('--overview-grid-image-height', `${Math.floor((reactRoot.offsetHeight - 1) / overviewGridHeight)}px`);
+		const w = Math.floor((reactRoot.offsetWidth - 1) / overviewGridWidth);
+		const h = Math.floor((reactRoot.offsetHeight - 1) / overviewGridHeight);
+		reactRoot?.style.setProperty('--overview-grid-image-width', `${w}px`);
+		reactRoot?.style.setProperty('--overview-grid-image-height', `${h}px`);
 	}
 
 	function stripUrlAndAppendFormat(url) {
@@ -46,7 +48,9 @@ window.addEventListener('commonLoaded', () => {
 			const o = { type: media.type, src: media.media_url_https };
 			if (o.type === 'video' || o.type === 'animated_gif') {
 				o.type = 'video';
-				o.src = media.video_info.variants.reduce((highest, current) => current.bitrate >= (highest.bitrate || 0) ? current : highest).url;
+				o.src = media.video_info.variants.reduce(
+					(highest, current) => current.bitrate >= (highest.bitrate || 0) ? current : highest
+				).url;
 				o.width = media.original_info.width;
 				o.height = media.original_info.height;
 				o.currentTime = 0;
@@ -102,7 +106,8 @@ window.addEventListener('commonLoaded', () => {
 					insort(tweets, tweet, media => -media.createdAt);
 					newTweetsSubscribers.forEach(callback => callback(newTeet));
 				});
-				console.log(`got ${tweets.length}/${tweetsCount} media tweets (${Math.round(tweets.length / tweetsCount * 100, 2)}%)`);
+				const percentage = Math.round(tweets.length / tweetsCount * 100, 2);
+				console.log(`got ${tweets.length}/${tweetsCount} media tweets (${percentage}%)`);
 				ensureAtLeastOneOverviewGrid();
 				insertMediaSection.call();
 			}
@@ -115,8 +120,11 @@ window.addEventListener('commonLoaded', () => {
 			});
 
 			// timeline.querySelectorAll('li[role="listitem"]').forEach(liElement => {
-			// 	startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
-			// 	});
+			// 	startObserver(liElement,
+			// 		() => liElement.querySelector('a[role="link"]'),
+			// 		e => e.tagName === 'A' && e.getAttribute('role') === 'link',
+			// 		async link => { }
+			// 	);
 			// });
 
 			// modify timeline's tweets
@@ -179,10 +187,15 @@ window.addEventListener('commonLoaded', () => {
 				mediaSection.style.overflow = 'hidden';
 				observeNthChild(mediaSection, [1, 0], timelineCallback);
 				insertMediaSection.define(function () {
-					if (!actualPrimaryColumn.querySelector('div[id="media-container"]')) actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
+					if (!actualPrimaryColumn.querySelector('div[id="media-container"]'))
+						actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
 				});
 			}
-			startObserver(actualPrimaryColumn, () => actualPrimaryColumn.querySelector('section[role="region"]'), e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region', mediaSectionCallback);
+			startObserver(actualPrimaryColumn,
+				() => actualPrimaryColumn.querySelector('section[role="region"]'),
+				e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region',
+				mediaSectionCallback
+			);
 		}
 
 		function homeTimelineCallback(homeTimeline) {
