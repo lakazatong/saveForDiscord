@@ -338,53 +338,53 @@ window.addEventListener('commonLoaded', () => {
 		}
 	};
 
+	// if (media.type === 'video') {
+	// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+	// 	svg.setAttribute('width', '20%');
+	// 	svg.setAttribute('padding-top', '20%');
+	// 	svg.setAttribute('viewBox', '0 0 20 20');
+	// 	svg.setAttribute('fill', 'white');
+	// 	svg.style.position = 'absolute';
+	// 	svg.style.top = '50%';
+	// 	svg.style.left = '50%';
+	// 	svg.style.transform = 'translate(-50%, -50%)';
+	// 	svg.style.borderRadius = '50%';
+	// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+	// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
+	// 	container.appendChild(svg);
+	// }
+	function addCounter(container) {
+		const counter = document.createElement('span');
+		counter.setAttribute('width', '25%');
+		counter.setAttribute('height', 'auto');
+		counter.style.position = 'absolute';
+		counter.style.bottom = '5%';
+		counter.style.right = '7%';
+		counter.style.color = 'white';
+		container.appendChild(counter);
+		return counter;
+	}
+
 	function setupOverviewMediaElement(container, tweet) {
 		const medias = tweet.medias;
 		const media = medias[tweet.cur];
 		
 		let elm = container.querySelector(media.type === 'photo' ? 'img' : 'video');
 		if (elm) {
+			let counter = container.querySelector('span');
 			if (medias.length > 1) {
-				const counter = container.querySelector('span');
-				if (counter) counter.textContent = `${tweet.cur + 1}/${medias.length}`;
+				if (!counter) counter = addCounter(container);
+				counter.textContent = `${tweet.cur + 1}/${medias.length}`;
+			} else {
+				counter?.remove();
 			}
 		} else {
 			container.innerHTML = '';
 			elm = media.type === 'photo' ? document.createElement('img') : newVideoMediaElement();
-			
 			elm.classList.add('overview-grid-image');
-			
-			if (medias.length > 1) {
-				elm.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata', () => {
-					
-					// if (media.type === 'video') {
-					// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-					// 	svg.setAttribute('width', '20%');
-					// 	svg.setAttribute('padding-top', '20%');
-					// 	svg.setAttribute('viewBox', '0 0 20 20');
-					// 	svg.setAttribute('fill', 'white');
-					// 	svg.style.position = 'absolute';
-					// 	svg.style.top = '50%';
-					// 	svg.style.left = '50%';
-					// 	svg.style.transform = 'translate(-50%, -50%)';
-					// 	svg.style.borderRadius = '50%';
-					// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-					// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
-					// 	container.appendChild(svg);
-					// }
-					
-					const counter = document.createElement('span');
-					counter.setAttribute('width', '25%');
-					counter.setAttribute('height', 'auto');
-					counter.textContent = `${tweet.cur + 1}/${medias.length}`;
-					counter.style.position = 'absolute';
-					counter.style.bottom = '5%';
-					counter.style.right = '7%';
-					counter.style.color = 'white';
-					container.appendChild(counter);
-				
-				}, { once: true });
-			}
+			if (medias.length > 1) elm.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata', () => {
+				addCounter(container).textContent = `${tweet.cur + 1}/${medias.length}`;
+			}, { once: true });
 			container.appendChild(elm);
 		}
 
