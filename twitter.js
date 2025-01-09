@@ -4,6 +4,7 @@ window.addEventListener('commonLoaded', () => {
 
 	if (window?.twitterInit === true) return;
 
+	let mediaCount;
 	const catchedTweets = [];
 
 	function getReactRootDims() {
@@ -31,44 +32,48 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	const tweetMediaSrcsSubscribers = new Map();
+	const tweetsMediasSubscribers = new Map();
 
-	async function getTweetInfo(tweetId) {
-		function getInfo(tweets) {
-			return tweets.find(tweet => tweet.rest_id === tweetId);
+	async function getTweet(tweetId) {
+		function get(newTweets) {
+			return newTweets.find(tweet => tweet.rest_id === tweetId);
 		}
-		let tweetInfo = getInfo(catchedTweets);
-		if (!tweetInfo) {
+		let tweet = get(catchedTweets);
+		if (!tweet) {
 			await new Promise(function (resolve, reject) {
 				const subsriberId = generateUUID();
 				tweetMediaSrcsSubscribers.set(subsriberId, function (newTweets) {
-					tweetInfo = getInfo(newTweets);
-					if (tweetInfo) {
+					tweet = get(newTweets);
+					if (tweet) {
 						tweetMediaSrcsSubscribers.delete(subsriberId);
 						resolve();
 					}
 				});
 			});
 		}
-		// if (tweetInfo.legacy.entities.media[0].type !== 'photo') return tweetInfo;
-		return tweetInfo;
+		// if (tweet.legacy.entities.media[0].type !== 'photo') return tweet;
+		return tweet;
 	}
 
-	function getTweetMedias(tweetInfo) {
-		return tweetInfo.legacy.entities.media.map(media => {
-			const o = { type: media.type, preview: media.media_url_https, src: media.media_url_https };
+	function getTweetMedias(tweet) {
+		return tweet.legacy.entities.media.map(media => {
+			const o = { type: media.type, src: media.media_url_https };
 			if (o.type === 'video' || o.type === 'animated_gif') {
 				o.type = 'video';
 				o.src = media.video_info.variants.reduce((highest, current) => current.bitrate >= (highest.bitrate || 0) ? current : highest).url;
 				o.width = media.original_info.width;
 				o.height = media.original_info.height;
-				// console.log(media);
 			}
 			return o;
 		});
 	}
 
-	function getTweetCreatedAt(tweetInfo) {
-		return new Date(tweetInfo.legacy.created_at).getTime();
+	function getMediaCount(tweet) {
+		return tweet.core.user_results.result.legacy.media_count;
+	}
+
+	function getTweetCreatedAt(tweet) {
+		return new Date(tweet.legacy.created_at).getTime();
 	}
 
 	// Injection logic
@@ -77,7 +82,7 @@ window.addEventListener('commonLoaded', () => {
 	window.documentReady = getDocumentReady.bind(document);
 
 	const seenTweets = new Set();
-	const tweetsMedias = [];
+	const tweets = [];
 
 	function init() {
 		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
@@ -100,9 +105,9 @@ window.addEventListener('commonLoaded', () => {
 					rawTweets = entries.find(item => !item.entryId.startsWith('cursor'))?.content.items;
 				}
 				if (rawTweets) {
-					const tweets = rawTweets.map(tweet => tweet.item.itemContent.tweet_results.result);
-					tweets.forEach(tweet => catchedTweets.push(tweet));
-					tweetMediaSrcsSubscribers.forEach(callback => callback(tweets));
+					const newTweets = rawTweets.map(raw => raw.item.itemContent.tweet_results.result);
+					newTweets.forEach(newTweet => catchedTweets.push(newTweet));
+					tweetMediaSrcsSubscribers.forEach(callback => callback(newTweets));
 				}
 			}
 		});
@@ -138,7 +143,7 @@ window.addEventListener('commonLoaded', () => {
 						// remove the content of the media page
 						if (document.location.href.endsWith('media')) {
 							startObserver(actualPrimaryColumn, () => actualPrimaryColumn.querySelector('section[role="region"]'), e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region', softRemove);
-							if (tweetsMedias.length) setupNavigationSystem(actualPrimaryColumn);
+							if (tweets.length) setupNavigationSystem(actualPrimaryColumn);
 						}
 
 						// modify timeline's tweets
@@ -148,10 +153,14 @@ window.addEventListener('commonLoaded', () => {
 									const tweetId = extractTweetId(link.getAttribute('href'));
 									if (seenTweets.has(tweetId)) return;
 									seenTweets.add(tweetId);
-									getTweetInfo(tweetId).then(tweetInfo => {
-										if (!tweetInfo) return;
-										insort(tweetsMedias, { createdAt: getTweetCreatedAt(tweetInfo), medias: getTweetMedias(tweetInfo), cur: 0 }, media => -media.createdAt);
+									getTweet(tweetId).then(tweet => {
+										if (!tweet) return;
+										// mediaCount = Math.max(mediaCount, getMediaCount(tweet));
+										mediaCount ??= getMediaCount(tweet);
+										const newTweet = { createdAt: getTweetCreatedAt(tweet), medias: getTweetMedias(tweet), cur: 0 };
+										insort(tweets, newTweet, media => -media.createdAt);
 										setupNavigationSystem(actualPrimaryColumn);
+										tweetsMediasSubscribers.forEach(callback => callback(newTweet));
 									});
 								});
 							});
@@ -209,22 +218,25 @@ window.addEventListener('commonLoaded', () => {
 	
 	let mediaType;
 	let mediaElement;
+	let overviewMediaElement;
+	let overviewMediaContainer;
+
 	let mediaContainer;
 	let tweetIndex = 0;
 	const mediaIndex = {
 		get(index) {
-			return tweetsMedias[index].cur;
+			return tweets[index].cur;
 		},
 		set(value, index, update) {
-			tweetsMedias[index].cur = value;
+			tweets[index].cur = value;
 			update();
 		},
 		increment(index, update) {
-			tweetsMedias[index].cur++;
+			tweets[index].cur++;
 			update();
 		},
 		decrement(index, update) {
-			tweetsMedias[index].cur--;
+			tweets[index].cur--;
 			update();
 		}
 	};
@@ -237,14 +249,14 @@ window.addEventListener('commonLoaded', () => {
 	const toggleVideoFullScreenKeyCode = 'KeyF';
 
 	const currentMedia = function () {
-		const tweet = tweetsMedias?.[tweetIndex];
+		const tweet = tweets?.[tweetIndex];
 		if (!tweet) return;
 		return tweet.medias[tweet.cur];
 	}
-	function updateMedia(forceSetup = false) {
+	function updateMedia() {
 		const newCur = currentMedia();
 		if (!newCur) return;
-		if (forceSetup || !mediaElement || newCur.type !== mediaType) {
+		if (!mediaElement || newCur.type !== mediaType) {
 			setupMediaElement(newCur);
 		} else {
 			mediaElement.src = newCur.src;
@@ -261,67 +273,71 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function toggleOverview(shouldRender = true) {
+	function toggleOverview() {
 		overviewVisible = !overviewVisible;
 		if (overviewVisible) {
-			if (shouldRender) renderOverview();
-
 			mediaElement.style.display = 'none';
 			overviewGrid.style.display = 'grid';
 
 			overviewGrid.addEventListener('keydown', handleKeydownEvent);
 			overviewGrid.focus();
+			return true;
 		} else {
 			overviewGrid.style.display = 'none';
 			mediaElement.style.removeProperty('display');
 
 			mediaElement.addEventListener('keydown', handleKeydownEvent);
 			mediaElement.focus();
+			return false;
 		}
 	}
 
-	const currentOverviewMedia = () => tweetsMedias[overviewTweetIndex.index].medias[mediaIndex.get(overviewTweetIndex.index)];
 	function updateOverviewMedia() {
-		const medias = tweetsMedias[overviewTweetIndex.index].medias;
-		const index = mediaIndex.get(overviewTweetIndex.index);
-		const container = overviewGrid.children[overviewTweetIndex.get()];
-		container.querySelector('img').src = medias[index].src;
-		const counter = container.querySelector('span');
-		if (!counter) return;
-		counter.textContent = `${index + 1}/${medias.length}`;
+		const tweet = tweets[overviewTweetIndex.index];
+		const medias = tweet.medias;
+		const media = medias[tweet.cur];
+		
+		if (
+			media.type === 'photo' && (overviewMediaElement = overviewMediaContainer.querySelector('img')) ||
+			media.type === 'video' && (overviewMediaElement = overviewMediaContainer.querySelector('video'))
+		) {
+			overviewMediaElement.src = media.src;
+		} else {
+			overviewMediaElement = setupOverviewMediaElement(overviewMediaContainer, tweet);
+		}
+
+		overviewMediaContainer.querySelector('span').textContent = `${tweet.cur + 1}/${medias.length}`;
 	}
 
 	const overviewTweetIndex = {
-		index: 0,
-		batchIndex: 0,
+		index: undefined,
+		batchIndex: undefined,
 		get() {
 			return this.index % overviewGridSize;
 		},
-		set(newIndex) {
+		async set(newIndex) {
 			if (newIndex === this.index) return;
-			const oldIndex = this.index;
 			this.index = newIndex;
-			const newBatchIndex = Math.floor(this.index / overviewGridSize);
+			const newBatchIndex = Math.floor(newIndex / overviewGridSize);
 			
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
-				renderOverview();
-				return true;
+				await renderOverview();
 			} else {
-				overviewGrid.children[oldIndex % overviewGridSize]?.classList.remove('overview-highlighted');
-				overviewGrid.children[this.get()]?.classList.add('overview-highlighted');
-				return false;
+				overviewMediaContainer?.classList.remove('overview-highlighted');
+				overviewMediaContainer = overviewGrid.children[overviewTweetIndex.get()];
+				overviewMediaContainer.classList.add('overview-highlighted');
 			}
 		},
 		left() {
-			this.set(this.index === 0 ? tweetsMedias.length - 1 : this.index - 1);
+			this.set(this.index === 0 ? tweets.length - 1 : this.index - 1);
 		},
 		right() {
-			this.set(this.index === tweetsMedias.length - 1 ? 0 : this.index + 1);
+			this.set(this.index === tweets.length - 1 ? 0 : this.index + 1);
 		},
 		up() {
 			if (this.index < overviewGridWidth) {
-				let newIndex = tweetsMedias.length - 1;
+				let newIndex = tweets.length - 1;
 				const left = newIndex % overviewGridWidth;
 				this.set(newIndex - Math.max(0, left - this.index));
 			} else {
@@ -329,69 +345,91 @@ window.addEventListener('commonLoaded', () => {
 			}
 		},
 		down() {
-			if (this.index >= (tweetsMedias.length - (tweetsMedias.length % overviewGridWidth))) {
+			if (this.index >= (tweets.length - (tweets.length % overviewGridWidth))) {
 				this.set(this.index % overviewGridWidth);
 			} else {
-				this.set(Math.min(this.index + overviewGridWidth, tweetsMedias.length - 1));
+				this.set(Math.min(this.index + overviewGridWidth, tweets.length - 1));
 			}
 		}
 	};
 
-	function renderOverview() {
-		overviewGrid.innerHTML = '';
-		const highlightedIndex = overviewTweetIndex.get();
-		const start = overviewTweetIndex.batchIndex * overviewGridSize;
-		const end = start + overviewGridSize;
-		tweetsMedias
-			.slice(start, end)
-			.forEach((tweet, index) => {
-				const media = tweet.medias[mediaIndex.get(start + index)];
-				const container = document.createElement('div');
-				container.style.display = 'contents';
-				container.style.position = 'relative';
-				container.style.display = 'inline-block';
+	function setupOverviewMediaElement(index, tweet) {
+		const container = overviewGrid.children[index % overviewGridSize];
+		const media = tweet.medias[tweet.cur];
+		
+		let elm = container.querySelector(media.type === 'photo' ? 'img' : 'video');
+		if (!elm) {
+			container.innerHTML = '';
+			elm = media.type === 'photo' ? document.createElement('img') : newVideoMediaElement();
+			
+			elm.classList.add('overview-grid-image');
 
-				if (index === highlightedIndex) {
-					container.classList.add('overview-highlighted');
+			elm.addEventListener('load', () => {
+				// if (media.type === 'video') {
+				// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+				// 	svg.setAttribute('width', '20%');
+				// 	svg.setAttribute('padding-top', '20%');
+				// 	svg.setAttribute('viewBox', '0 0 20 20');
+				// 	svg.setAttribute('fill', 'white');
+				// 	svg.style.position = 'absolute';
+				// 	svg.style.top = '50%';
+				// 	svg.style.left = '50%';
+				// 	svg.style.transform = 'translate(-50%, -50%)';
+				// 	svg.style.borderRadius = '50%';
+				// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+				// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
+				// 	container.appendChild(svg);
+				// }
+
+				if (tweet.medias.length > 1) {
+					const counter = document.createElement('span');
+					counter.setAttribute('width', '25%');
+					counter.setAttribute('height', 'auto');
+					counter.textContent = `${tweet.cur + 1}/${tweet.medias.length}`;
+					counter.style.position = 'absolute';
+					counter.style.bottom = '5%';
+					counter.style.right = '7%';
+					counter.style.color = 'white';
+					container.appendChild(counter);
 				}
+			}, { once: true });
+			
+			container.appendChild(elm);
+		}
 
-				const img = document.createElement('img');
-				img.src = media.preview;
-				img.classList.add('overview-grid-image');
-				container.appendChild(img);
-				
-				img.addEventListener('load', () => {
-					if (media.type === 'video') {
-						const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-						svg.setAttribute('width', '20%');
-						svg.setAttribute('padding-top', '20%');
-						svg.setAttribute('viewBox', '0 0 20 20');
-						svg.setAttribute('fill', 'white');
-						svg.style.position = 'absolute';
-						svg.style.top = '50%';
-						svg.style.left = '50%';
-						svg.style.transform = 'translate(-50%, -50%)';
-						svg.style.borderRadius = '50%';
-						svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-						svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
-						container.appendChild(svg);
-					}
+		elm.src = media.src;
+		
+		if (index === overviewTweetIndex.index) {
+			overviewMediaContainer?.classList.remove('overview-highlighted');
+			overviewMediaContainer = container;
+			overviewMediaContainer.classList.add('overview-highlighted');
+			overviewMediaElement = elm;
+		}
 
-					if (tweet.medias.length > 1) {
-						const counter = document.createElement('span');
-						counter.setAttribute('width', '25%');
-						counter.setAttribute('height', 'auto');
-						counter.textContent = `${tweet.cur + 1}/${tweet.medias.length}`;
-						counter.style.position = 'absolute';
-						counter.style.bottom = '5%';
-						counter.style.right = '7%';
-						counter.style.color = 'white';
-						container.appendChild(counter);
-					}
-				}, { once: true });
+		return elm;
+	}
 
-				overviewGrid.appendChild(container);
+	async function renderOverview() {
+		const start = overviewTweetIndex.batchIndex * overviewGridSize;
+		const end = Math.min(start + overviewGridSize, mediaCount);
+		let sliced = tweets.slice(start, end);
+		if (sliced.length < end - start) {
+			await new Promise(function (resolve, reject) {
+				const subsriberId = generateUUID();
+				tweetsMediasSubscribers.set(subsriberId, function (newTweet) {
+					sliced = tweets.slice(start, end);
+					if (sliced.length < end - start) return;
+					tweetsMediasSubscribers.delete(subsriberId);
+					resolve();
+				});
 			});
+		}
+		sliced.forEach((tweet, localIndex) => setupOverviewMediaElement(start + localIndex, tweet));
+		let localIndex = end % overviewGridSize;
+		while (localIndex > 0) {
+			overviewGrid.children[localIndex].innerHTML = '';
+			localIndex = (localIndex + 1) % overviewGridSize;
+		}
 		updateReactRootDims();
 	}
 
@@ -443,7 +481,7 @@ window.addEventListener('commonLoaded', () => {
 				break;
 			case 'ArrowRight':
 				if (e.shiftKey) {
-					if (mediaIndex.get(index) < tweetsMedias[index].medias.length - 1) mediaIndex.increment(index, updateOverviewMedia);
+					if (mediaIndex.get(index) < tweets[index].medias.length - 1) mediaIndex.increment(index, updateOverviewMedia);
 				} else {
 					overviewTweetIndex.right();
 				}
@@ -471,34 +509,36 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function handleKeydownEvent(e) {
+	async function handleKeydownEvent(e) {
 		// console.log(e.code);
 		if (overlayVisible) return handleOverlayKeydownEvent(e);
 		if (overviewVisible) return handleOverviewKeydownEvent(e);
 		
-		switch (e.code) {
-			case 'ArrowRight':
-				if (mediaIndex.get(tweetIndex) < tweetsMedias[tweetIndex].medias.length - 1) mediaIndex.increment(tweetIndex, updateMedia);
-				e.preventDefault();
-				break;
-			case 'ArrowLeft':
-				if (mediaIndex.get(tweetIndex) > 0) mediaIndex.decrement(tweetIndex, updateMedia);
-				e.preventDefault();
-				break;
-			case 'ArrowDown':
-				if (tweetIndex < tweetsMedias.length - 1) {
-					tweetIndex++;
-					updateMedia();
-				}
-				e.preventDefault();
-				break;
-			case 'ArrowUp':
-				if (tweetIndex > 0) {
-					tweetIndex--;
-					updateMedia();
-				}
-				e.preventDefault();
-				break;
+		if (!document.fullscreenElement) {
+			switch (e.code) {
+				case 'ArrowRight':
+					if (mediaIndex.get(tweetIndex) < tweets[tweetIndex].medias.length - 1) mediaIndex.increment(tweetIndex, updateMedia);
+					e.preventDefault();
+					break;
+				case 'ArrowLeft':
+					if (mediaIndex.get(tweetIndex) > 0) mediaIndex.decrement(tweetIndex, updateMedia);
+					e.preventDefault();
+					break;
+				case 'ArrowDown':
+					if (tweetIndex < tweets.length - 1) {
+						tweetIndex++;
+						updateMedia();
+					}
+					e.preventDefault();
+					break;
+				case 'ArrowUp':
+					if (tweetIndex > 0) {
+						tweetIndex--;
+						updateMedia();
+					}
+					e.preventDefault();
+					break;
+			}
 		}
 
 		if (mediaType === 'video') {
@@ -529,28 +569,33 @@ window.addEventListener('commonLoaded', () => {
 					e.preventDefault();
 					break;
 				case toggleOverviewKeyCode:
-					toggleOverview(!overviewTweetIndex.set(tweetIndex));
+					if (toggleOverview()) {
+						await overviewTweetIndex.set(tweetIndex);
+					}
 					e.preventDefault();
 					break;
 			}
 		}
 	}
 
+	function newVideoMediaElement() {
+		const r = document.createElement('video');
+		r.controls = r.autoplay = r.loop = true;
+		return r;
+	}
+
 	function setupMediaElement(newCur) {
 		mediaElement?.remove();
+		mediaElement = null;
 		
-		if (newCur.type === 'video') {
-			mediaType = 'video';
-			mediaElement = document.createElement('video');
-
-			mediaElement.controls = true;
-			mediaElement.autoplay = true;
-			mediaElement.loop = true;
-			mediaElement.style.width = newCur.width;
-			mediaElement.style.height = newCur.height;
-		} else {
+		if (newCur.type === 'photo') {
 			mediaType = 'photo';
 			mediaElement = document.createElement('img');
+		} else {
+			mediaType = 'video';
+			mediaElement = newVideoMediaElement();
+			mediaElement.style.width = newCur.width;
+			mediaElement.style.height = newCur.height;
 		}
 
 		mediaElement.src = newCur.src;
@@ -564,6 +609,18 @@ window.addEventListener('commonLoaded', () => {
 		mediaElement.addEventListener('keydown', handleKeydownEvent);
 		mediaContainer.appendChild(mediaElement);
 		mediaElement.focus();
+	}
+
+	function setupOverviewGrid() {
+		for (let i = 0; i < overviewGridSize; i++) {
+			const container = document.createElement('div');
+
+			container.style.display = 'contents';
+			container.style.position = 'relative';
+			container.style.display = 'inline-block';
+
+			overviewGrid.appendChild(container);
+		}
 	}
 
 	let isNavSysSetup = false;
@@ -599,7 +656,7 @@ window.addEventListener('commonLoaded', () => {
 			mediaContainer.style.overflow = 'hidden';
 			column.appendChild(mediaContainer);
 
-			updateMedia(true);
+			setupMediaElement(currentMedia());
 
 			overviewGrid = document.createElement('div');
 			overviewGrid.setAttribute('tabindex', '0');
@@ -608,6 +665,9 @@ window.addEventListener('commonLoaded', () => {
 			overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
 			overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
 			overviewGrid.style.gap = '2px';
+
+			setupOverviewGrid();
+
 			mediaContainer.appendChild(overviewGrid);
 		}
 
