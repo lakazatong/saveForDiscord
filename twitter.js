@@ -161,6 +161,7 @@ window.addEventListener('commonLoaded', () => {
 										insort(tweets, newTweet, media => -media.createdAt);
 										setupNavigationSystem(actualPrimaryColumn);
 										tweetsMediasSubscribers.forEach(callback => callback(newTweet));
+										console.log(`got ${Math.round(tweets.length / mediaCount * 100, 2)}% of media`);
 									});
 								});
 							});
