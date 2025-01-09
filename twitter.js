@@ -4,8 +4,16 @@ window.addEventListener('commonLoaded', () => {
 
 	if (window?.twitterInit === true) return;
 
-	let mediaCount;
+	let tweetsCount;
 	const catchedTweets = [];
+
+	let insertMediaSection = new DeferredFunction();
+	let requestMoreTweets = new DeferredFunction();
+
+	function ensureAtLeastOneOverviewGrid() {
+		if (tweets.length >= overviewGridSize || tweets.length === tweetsCount) return;
+		requestMoreTweets.call();
+	}
 
 	function getReactRootDims() {
 		const reactRoot = document.getElementById('react-root');
@@ -31,49 +39,28 @@ window.addEventListener('commonLoaded', () => {
 		return match ? match[1] : null;
 	}
 
-	const tweetMediaSrcsSubscribers = new Map();
-	const tweetsMediasSubscribers = new Map();
+	const newTweetsSubscribers = new Map();
 
-	async function getTweet(tweetId) {
-		function get(newTweets) {
-			return newTweets.find(tweet => tweet.rest_id === tweetId);
-		}
-		let tweet = get(catchedTweets);
-		if (!tweet) {
-			await new Promise(function (resolve, reject) {
-				const subsriberId = generateUUID();
-				tweetMediaSrcsSubscribers.set(subsriberId, function (newTweets) {
-					tweet = get(newTweets);
-					if (tweet) {
-						tweetMediaSrcsSubscribers.delete(subsriberId);
-						resolve();
-					}
-				});
-			});
-		}
-		// if (tweet.legacy.entities.media[0].type !== 'photo') return tweet;
-		return tweet;
-	}
-
-	function getTweetMedias(tweet) {
-		return tweet.legacy.entities.media.map(media => {
+	function getTweetMedias(newTweet) {
+		return newTweet.legacy.entities.media.map(media => {
 			const o = { type: media.type, src: media.media_url_https };
 			if (o.type === 'video' || o.type === 'animated_gif') {
 				o.type = 'video';
 				o.src = media.video_info.variants.reduce((highest, current) => current.bitrate >= (highest.bitrate || 0) ? current : highest).url;
 				o.width = media.original_info.width;
 				o.height = media.original_info.height;
+				o.currentTime = 0;
 			}
 			return o;
 		});
 	}
 
-	function getMediaCount(tweet) {
-		return tweet.core.user_results.result.legacy.media_count;
+	function getMediaCount(newTweet) {
+		return newTweet.core.user_results.result.legacy.media_count;
 	}
 
-	function getTweetCreatedAt(tweet) {
-		return new Date(tweet.legacy.created_at).getTime();
+	function getTweetCreatedAt(newTweet) {
+		return new Date(newTweet.legacy.created_at).getTime();
 	}
 
 	// Injection logic
@@ -97,20 +84,117 @@ window.addEventListener('commonLoaded', () => {
 		window.addEventListener('message', function (event) {
 			if (event.source == window && event.data && event.data.action === 'UserMediaResponse') {
 				const body = JSON.parse(event.data.body);
-				// console.log('UserMediaResponse', body);
+				console.log('UserMediaResponse', body);
 				const instructions = body.data.user.result.timeline_v2.timeline.instructions;
 				let rawTweets = instructions.find(obj => obj.type === 'TimelineAddToModule')?.moduleItems;
 				if (!rawTweets) {
 					const entries = instructions.find(obj => obj.type === 'TimelineAddEntries').entries;
 					rawTweets = entries.find(item => !item.entryId.startsWith('cursor'))?.content.items;
+					if (!rawTweets) return;
 				}
-				if (rawTweets) {
-					const newTweets = rawTweets.map(raw => raw.item.itemContent.tweet_results.result);
-					newTweets.forEach(newTweet => catchedTweets.push(newTweet));
-					tweetMediaSrcsSubscribers.forEach(callback => callback(newTweets));
-				}
+
+				const newTweets = rawTweets.map(raw => raw.item.itemContent.tweet_results.result);
+				newTweets.forEach(newTeet => {
+					if (seenTweets.has(newTeet.rest_id)) return;
+					seenTweets.add(newTeet.rest_id);
+					tweetsCount ??= getMediaCount(newTeet);
+					const tweet = { createdAt: getTweetCreatedAt(newTeet), medias: getTweetMedias(newTeet), cur: 0 };
+					insort(tweets, tweet, media => -media.createdAt);
+					newTweetsSubscribers.forEach(callback => callback(newTeet));
+				});
+				console.log(`got ${tweets.length}/${tweetsCount} media tweets (${Math.round(tweets.length / tweetsCount * 100, 2)}%)`);
+				ensureAtLeastOneOverviewGrid();
+				insertMediaSection.call();
 			}
 		});
+
+		function timelineCallback(timeline) {
+			timeline.style.minHeight = '0';
+			requestMoreTweets.define(function () {
+				Array.from(timeline.children).forEach(softRemove);
+			});
+
+			// timeline.querySelectorAll('li[role="listitem"]').forEach(liElement => {
+			// 	startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
+			// 	});
+			// });
+
+			// modify timeline's tweets
+			function modifyTweet() {
+				// console.log('modifyTweet called');
+				getStartAttributeObserver(timeline)('article', 'data-testid', 'tweet', tweet => {
+					observeNthChild(tweet, [0, 0, 1], tweetTopDiv => {
+						// delete tweets with no img
+						observeNthChild(tweetTopDiv, 1, tweetDiv => {
+							if (tweetDiv.children.length === 3) {
+								let parent = tweet;
+								while (parent) {
+									if (parent.getAttribute('data-testid') === 'cellInnerDiv') {
+										// console.log(`deleted tweet:`, parent);
+										softRemove(parent);
+										break;
+									}
+									parent = parent.parentElement;
+								}
+							}
+							else {
+								tweetDiv.style.padding = '0px';
+							}
+						});
+						// where the pp is (for each tweet)
+						observeNthChild(tweetTopDiv, 0, softRemove);
+					});
+
+					tweet.style.padding = '0px';
+
+					// where pinned is (for each tweet)
+					observeNthChild(tweet, [0, 0, 0], softRemove);
+
+					tweet.setAttribute('data-testid', 'modified-tweet');
+				})
+					.then(() => modifyTweet());
+			}
+
+			modifyTweet();
+		}
+
+		function actualPrimaryColumnCallback(actualPrimaryColumn) {
+			observeNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
+				// profile banner
+				observeNthChild(topActualPrimaryColumn, 0, softRemove);
+				observeNthChild(topActualPrimaryColumn, 1, presentation => {
+					presentation.style.margin = presentation.style.padding = '0px';
+				});
+			});
+			// profile pp
+			observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
+			// hacky but it works
+			actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
+			
+			// hides the content of the media page
+			if (!document.location.href.endsWith('media')) return;
+			
+			function mediaSectionCallback(mediaSection) {
+				mediaSection.style.position = 'relative';
+				mediaSection.style.overflow = 'hidden';
+				observeNthChild(mediaSection, [1, 0], timelineCallback);
+				insertMediaSection.define(function () {
+					if (!actualPrimaryColumn.querySelector('div[id="media-container"]')) actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
+				});
+			}
+			startObserver(actualPrimaryColumn, () => actualPrimaryColumn.querySelector('section[role="region"]'), e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region', mediaSectionCallback);
+		}
+
+		function homeTimelineCallback(homeTimeline) {
+			// sticky top back and follow button with tweeter profile's name and posts count
+			observeNthChild(homeTimeline, 0, softRemove);
+			observeNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback);
+		}
+
+		function primaryColumnCallback(primaryColumn) {
+			primaryColumn.style.border = '0px';
+			observeNthChild(primaryColumn, 0, homeTimelineCallback);
+		}
 
 		observeElementChanges(document.body, body => {
 			const startAttributeObserver = getStartAttributeObserver(body);
@@ -120,127 +204,28 @@ window.addEventListener('commonLoaded', () => {
 			startAttributeObserver('div', 'data-testid', 'sidebarColumn', softRemove);
 			// self explainatory
 			startAttributeObserver('div', 'data-testid', 'DMDrawer', softRemove);
-			startAttributeObserver('div', 'data-testid', 'primaryColumn', primaryColumn => {
-				primaryColumn.style.border = '0px';
-				observeNthChild(primaryColumn, 0, homeTimeline => {
-					// sticky top back and follow button with tweeter profile's name and posts count
-					observeNthChild(homeTimeline, 0, softRemove);
-					observeNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumn => {
-						observeNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
-							// profile banner
-							observeNthChild(topActualPrimaryColumn, 0, softRemove);
-							observeNthChild(topActualPrimaryColumn, 1, presentation => {
-								presentation.style.margin = '0px';
-								presentation.style.padding = '0px';
-							});
-						});
-						// profile pp
-						observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
-						// hacky but it works
-						const actualPrimaryColumnWidth = `${getReactRootDims()[0]}px`;
-						actualPrimaryColumn.style.width = actualPrimaryColumnWidth;
-						actualPrimaryColumn.style.maxWidth = actualPrimaryColumnWidth;
-						// remove the content of the media page
-						if (document.location.href.endsWith('media')) {
-							startObserver(actualPrimaryColumn, () => actualPrimaryColumn.querySelector('section[role="region"]'), e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region', softRemove);
-							if (tweets.length) setupNavigationSystem(actualPrimaryColumn);
-						}
-
-						// modify timeline's tweets
-						observeNthChild(actualPrimaryColumn, [2, 1, 0], timeLine => {
-							timeLine.querySelectorAll('li[role="listitem"]').forEach(liElement => {
-								startObserver(liElement, () => liElement.querySelector('a[role="link"]'), e => e.tagName === 'A' && e.getAttribute('role') === 'link', async link => {
-									const tweetId = extractTweetId(link.getAttribute('href'));
-									if (seenTweets.has(tweetId)) return;
-									seenTweets.add(tweetId);
-									getTweet(tweetId).then(tweet => {
-										if (!tweet) return;
-										// mediaCount = Math.max(mediaCount, getMediaCount(tweet));
-										mediaCount ??= getMediaCount(tweet);
-										const newTweet = { createdAt: getTweetCreatedAt(tweet), medias: getTweetMedias(tweet), cur: 0 };
-										insort(tweets, newTweet, media => -media.createdAt);
-										setupNavigationSystem(actualPrimaryColumn);
-										tweetsMediasSubscribers.forEach(callback => callback(newTweet));
-										console.log(`got ${Math.round(tweets.length / mediaCount * 100, 2)}% of media`);
-									});
-								});
-							});
-
-							function modifyTweet() {
-								// console.log('modifyTweet called');
-								getStartAttributeObserver(timeLine)('article', 'data-testid', 'tweet', tweet => {
-									observeNthChild(tweet, [0, 0, 1], tweetTopDiv => {
-										// delete tweets with no img
-										observeNthChild(tweetTopDiv, 1, tweetDiv => {
-											if (tweetDiv.children.length === 3) {
-												let parent = tweet;
-												while (parent) {
-													if (parent.getAttribute('data-testid') === 'cellInnerDiv') {
-														// console.log(`deleted tweet:`, parent);
-														softRemove(parent);
-														break;
-													}
-													parent = parent.parentElement;
-												}
-											}
-											else {
-												tweetDiv.style.padding = '0px';
-											}
-										});
-										// where the pp is (for each tweet)
-										observeNthChild(tweetTopDiv, 0, softRemove);
-									});
-
-									tweet.style.padding = '0px';
-
-									// where pinned is (for each tweet)
-									observeNthChild(tweet, [0, 0, 0], softRemove);
-
-									tweet.setAttribute('data-testid', 'modified-tweet');
-								})
-									.then(() => modifyTweet());
-							}
-
-							modifyTweet();
-						});
-					})
-				});
-			});
+			startAttributeObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback);
 		});
 	}
 
 	let overviewGrid;
-	const overviewGridWidth = 7;
-	const overviewGridHeight = 4;
+	const overviewGridWidth = 8;
+	const overviewGridHeight = 5;
 	const overviewGridSize = overviewGridWidth * overviewGridHeight;
 	let overviewBatchIndex = 0;
 
-	let overlay;
+	// let overlay;
 	
-	let mediaType;
 	let mediaElement;
 	let overviewMediaContainer;
 
-	let mediaContainer;
 	let tweetIndex = 0;
 	const mediaIndex = {
-		get(index) {
-			return tweets[index].cur;
-		},
-		set(value, index, update) {
-			tweets[index].cur = value;
-			update();
-		},
-		increment(index, update) {
-			tweets[index].cur++;
-			update();
-		},
-		decrement(index, update) {
-			tweets[index].cur--;
-			update();
-		}
+		get: index => tweets[index].cur,
+		increment: index => tweets[index].cur++,
+		decrement: index => tweets[index].cur--
 	};
-	let overlayVisible = false;
+	// let overlayVisible = false;
 	let overviewVisible = false;
 	let highlightedChannel = 0;
 	const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
@@ -248,30 +233,46 @@ window.addEventListener('commonLoaded', () => {
 	const setOverviewKeyCode = 'KeyV';
 	const toggleVideoFullScreenKeyCode = 'KeyF';
 
-	const currentMedia = function () {
-		const tweet = tweets?.[tweetIndex];
-		if (!tweet) return;
-		return tweet.medias[tweet.cur];
-	}
-	function updateMedia() {
-		const newCur = currentMedia();
-		if (!newCur) return;
-		if (!mediaElement || newCur.type !== mediaType) {
-			setupMediaElement(newCur);
-		} else {
-			mediaElement.src = newCur.src;
+	function saveCurrentTime(elm, index) {
+		if (elm.currentTime >= 0) {
+			const tweet = tweets[index];
+			tweet.medias[tweet.cur].currentTime = elm.currentTime;
 		}
 	}
 
-	function toggleChannels() {
-		overlayVisible = !overlayVisible;
-		if (overlayVisible) {
-			highlightChannel(0);
-			overlay.style.display = 'flex';
-		} else {
-			overlay.style.display = 'none';
-		}
+	function currentMedia(index) {
+		const tweet = tweets?.[index];
+		if (!tweet) return;
+		return tweet.medias[tweet.cur];
 	}
+
+	function mediaElementType() {
+		return mediaElement.tagName === 'IMG' ? 'photo' : 'video';
+	}
+
+	function updateMedia(index) {
+		const media = currentMedia(index ?? tweetIndex);
+		if (!media) return;
+		saveCurrentTime(mediaElement, tweetIndex);
+		if (media.type === mediaElementType()) {
+			mediaElement.src = media.src;
+			if (mediaElement.currentTime >= 0) mediaElement.currentTime = media.currentTime;
+			mediaElement.focus();
+		} else {
+			setupMediaElement(media);
+		}
+		tweetIndex = index;
+	}
+
+	// function toggleChannels() {
+	// 	overlayVisible = !overlayVisible;
+	// 	if (overlayVisible) {
+	// 		highlightChannel(0);
+	// 		overlay.style.display = 'flex';
+	// 	} else {
+	// 		overlay.style.display = 'none';
+	// 	}
+	// }
 
 	function setOverview(set) {
 		overviewVisible = set;
@@ -388,7 +389,7 @@ window.addEventListener('commonLoaded', () => {
 				elm = document.createElement('img');
 				elm.src = media.src;
 			} else {
-				elm = newVideoMediaElement();
+				elm = newVideoMediaElement(false);
 				elm.src = media.src;
 				if (isSelected) {
 					elm.play();
@@ -421,12 +422,12 @@ window.addEventListener('commonLoaded', () => {
 
 	function renderOverview() {
 		const start = overviewTweetIndex.batchIndex * overviewGridSize;
-		const end = Math.min(start + overviewGridSize, mediaCount);
+		const end = Math.min(start + overviewGridSize, tweetsCount);
 		let i = start;
 		for (; i < end; i++) {
 			const index = i;
 			const localIndex = index % overviewGridSize;
-			if (tweetsMediasSubscribers.get(localIndex)) tweetsMediasSubscribers.delete(localIndex);
+			if (newTweetsSubscribers.get(localIndex)) newTweetsSubscribers.delete(localIndex);
 			const tweet = tweets?.[index];
 			const container = overviewGrid.children[localIndex];
 			let tmp = false;
@@ -443,10 +444,10 @@ window.addEventListener('commonLoaded', () => {
 				setupOverviewMediaElement(container, tweet, isSelected);
 				continue;
 			}
-			tweetsMediasSubscribers.set(localIndex, function (newTweet) {
+			newTweetsSubscribers.set(localIndex, function (newTweet) {
 				const t = tweets?.[index];
 				if (!t) return;
-				tweetsMediasSubscribers.delete(localIndex);
+				newTweetsSubscribers.delete(localIndex);
 				setupOverviewMediaElement(container, t, isSelected);
 			});
 		}
@@ -483,33 +484,33 @@ window.addEventListener('commonLoaded', () => {
 		highlightedChannel = index;
 	}
 
-	function handleOverlayKeydownEvent(e) {
-		switch (e.code) {
-			case 'ArrowDown':
-				highlightChannel(
-					Math.min(
-						document.querySelectorAll('.channel').length - 1,
-						highlightedChannel + 1
-					)
-				);
-				e.preventDefault();
-				break;
-			case 'ArrowUp':
-				highlightChannel(Math.max(0, highlightedChannel - 1));
-				e.preventDefault();
-				break;
-			case 'Enter':
-				console.log('selected channel:', channels[highlightedChannel]);
-				toggleChannels();
-				e.preventDefault();
-				break;
-			case toggleChannelsKeyCode:
-			case 'Escape':
-				toggleChannels();
-				e.preventDefault();
-				break;
-		}
-	}
+	// function handleOverlayKeydownEvent(e) {
+	// 	switch (e.code) {
+	// 		case 'ArrowDown':
+	// 			highlightChannel(
+	// 				Math.min(
+	// 					document.querySelectorAll('.channel').length - 1,
+	// 					highlightedChannel + 1
+	// 				)
+	// 			);
+	// 			e.preventDefault();
+	// 			break;
+	// 		case 'ArrowUp':
+	// 			highlightChannel(Math.max(0, highlightedChannel - 1));
+	// 			e.preventDefault();
+	// 			break;
+	// 		case 'Enter':
+	// 			console.log('selected channel:', channels[highlightedChannel]);
+	// 			toggleChannels();
+	// 			e.preventDefault();
+	// 			break;
+	// 		case toggleChannelsKeyCode:
+	// 		case 'Escape':
+	// 			toggleChannels();
+	// 			e.preventDefault();
+	// 			break;
+	// 	}
+	// }
 
 	function handleOverviewKeydownEvent(e) {
 		const index = overviewTweetIndex.index;
@@ -553,92 +554,74 @@ window.addEventListener('commonLoaded', () => {
 
 	async function handleKeydownEvent(e) {
 		// console.log(e.code);
-		if (overlayVisible) return handleOverlayKeydownEvent(e);
-		if (overviewVisible) return handleOverviewKeydownEvent(e);
 		
-		if (!document.fullscreenElement) {
-			switch (e.code) {
-				case 'ArrowRight':
-					if (mediaIndex.get(tweetIndex) < tweets[tweetIndex].medias.length - 1) mediaIndex.increment(tweetIndex, updateMedia);
-					e.preventDefault();
-					break;
-				case 'ArrowLeft':
-					if (mediaIndex.get(tweetIndex) > 0) mediaIndex.decrement(tweetIndex, updateMedia);
-					e.preventDefault();
-					break;
-				case 'ArrowDown':
-					if (tweetIndex < tweets.length - 1) {
-						tweetIndex++;
-						updateMedia();
-					}
-					e.preventDefault();
-					break;
-				case 'ArrowUp':
-					if (tweetIndex > 0) {
-						tweetIndex--;
-						updateMedia();
-					}
-					e.preventDefault();
-					break;
-			}
+		if (document.fullscreenElement) {
+			if (e.code === toggleVideoFullScreenKeyCode) document.exitFullscreen();
+			return;
 		}
 
-		if (mediaType === 'video') {
-			switch (e.code) {
-				case toggleVideoFullScreenKeyCode:
-					if (document.fullscreenElement) {
-						document.exitFullscreen();
-					} else {
-						mediaElement.requestFullscreen();
-					}
-					e.preventDefault();
-					break;
-				case toggleChannelsKeyCode:
-					if (document.fullscreenElement) break;
-					toggleChannels();
-					e.preventDefault();
-					break;
-				case setOverviewKeyCode:
-					if (document.fullscreenElement) break;
-					setOverview(true);
-					e.preventDefault();
-					break;
-			}
-		} else {
-			switch (e.code) {
-				case toggleChannelsKeyCode:
-					toggleChannels();
-					e.preventDefault();
-					break;
-				case setOverviewKeyCode:
-					setOverview(true);
-					e.preventDefault();
-					break;
-			}
+		// if (overlayVisible) return handleOverlayKeydownEvent(e);
+		if (overviewVisible) return handleOverviewKeydownEvent(e);
+
+		switch (e.code) {
+			case 'ArrowRight':
+				if (mediaIndex.get(tweetIndex) < tweets[tweetIndex].medias.length - 1) {
+					mediaIndex.increment(tweetIndex);
+					updateMedia(tweetIndex);
+				}
+				e.preventDefault();
+				break;
+			case 'ArrowLeft':
+				if (mediaIndex.get(tweetIndex) > 0) {
+					mediaIndex.decrement(tweetIndex);
+					updateMedia(tweetIndex);
+				}
+				e.preventDefault();
+				break;
+			case 'ArrowDown':
+				if (tweetIndex < tweets.length - 1) updateMedia(tweetIndex + 1);
+				e.preventDefault();
+				break;
+			case 'ArrowUp':
+				if (tweetIndex > 0) updateMedia(tweetIndex - 1);
+				e.preventDefault();
+				break;
+			// case toggleChannelsKeyCode:
+			// 	toggleChannels();
+			// 	e.preventDefault();
+			// 	break;
+			case setOverviewKeyCode:
+				setOverview(true);
+				e.preventDefault();
+				break;
+			case toggleVideoFullScreenKeyCode:
+				mediaElement.requestFullscreen();
+				e.preventDefault();
+				break;
 		}
 	}
 
-	function newVideoMediaElement() {
+	function newVideoMediaElement(autoplay) {
 		const r = document.createElement('video');
 		r.controls = r.loop = true;
+		r.autoplay = autoplay;
 		return r;
 	}
 
-	function setupMediaElement(newCur) {
+	function setupMediaElement(media) {
 		mediaElement?.remove();
-		mediaElement = null;
 		
-		if (newCur.type === 'photo') {
-			mediaType = 'photo';
+		if (media.type === 'photo') {
 			mediaElement = document.createElement('img');
+			mediaElement.src = media.src;
 		} else {
-			mediaType = 'video';
-			mediaElement = newVideoMediaElement();
-			mediaElement.style.width = newCur.width;
-			mediaElement.style.height = newCur.height;
+			mediaElement = newVideoMediaElement(true);
+			mediaElement.src = media.src;
+			mediaElement.currentTime = media.currentTime;
+			mediaElement.style.width = media.width;
+			mediaElement.style.height = media.height;
 		}
 
-		mediaElement.src = newCur.src;
 		mediaElement.setAttribute('tabindex', '0');
 
 		mediaElement.style.maxWidth = '100%';
@@ -647,11 +630,31 @@ window.addEventListener('commonLoaded', () => {
 		mediaElement.style.border = '0';
 
 		mediaElement.addEventListener('keydown', handleKeydownEvent);
-		mediaContainer.appendChild(mediaElement);
+
 		mediaElement.focus();
 	}
 
-	function setupOverviewGrid() {
+	function setupMediaContainer() {
+		const mediaContainer = document.createElement('div');
+
+		mediaContainer.id = 'media-container';
+		mediaContainer.style.position = 'relative';
+		mediaContainer.style.overflow = 'hidden';
+		mediaContainer.style.zIndex = '0';
+	
+		return mediaContainer;
+	}
+
+	function setupOverviewGrid(root) {
+		overviewGrid = document.createElement('div');
+
+		overviewGrid.setAttribute('tabindex', '0');
+		overviewGrid.style.objectFit = 'contain';
+		overviewGrid.style.display = 'none';
+		overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
+		overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
+		overviewGrid.style.gridGap = '2px';
+
 		for (let i = 0; i < overviewGridSize; i++) {
 			const container = document.createElement('div');
 
@@ -663,64 +666,47 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	let isNavSysSetup = false;
-	function setupNavigationSystem(column) {
-		if (!isNavSysSetup) {
-			// Create overlay and its channels
-			overlay = document.createElement('div');
-			overlay.classList.add('overlay');
-			overlay.style.position = 'fixed';
-			overlay.style.top = '0';
-			overlay.style.left = '0';
-			overlay.style.right = '0';
-			overlay.style.bottom = '0';
-			overlay.style.display = 'none';
-			overlay.style.zIndex = '9999';
-			document.body.appendChild(overlay);
-
-			channels.forEach(name => {
-				const channelElement = document.createElement('div');
-				channelElement.classList.add('channel');
-				channelElement.textContent = name;
-				overlay.appendChild(channelElement);
-			});
-
-			isNavSysSetup = true;
-		}
-
-		if (!column.querySelector('div[id="media-container"]')) {
-
-			mediaContainer = document.createElement('div');
-			mediaContainer.id = 'media-container';
-			mediaContainer.style.position = 'relative';
-			mediaContainer.style.overflow = 'hidden';
-			column.appendChild(mediaContainer);
-
-			setupMediaElement(currentMedia());
-
-			overviewGrid = document.createElement('div');
-			overviewGrid.setAttribute('tabindex', '0');
-			overviewGrid.style.objectFit = 'contain';
-			overviewGrid.style.display = 'none';
-			overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
-			overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
-			overviewGrid.style.gridGap = '2px';
-
-			setupOverviewGrid();
-
-			mediaContainer.appendChild(overviewGrid);
-		}
-
-		const [reactRootWidth,reactRootHeight] = getReactRootDims();
+	function setupNavigationSystem() {
+		const [reactRootWidth, reactRootHeight] = getReactRootDims();
+		
+		const mediaContainer = setupMediaContainer();
 		mediaContainer.style.width = `${reactRootWidth}px`;
 		mediaContainer.style.maxWidth = `${reactRootWidth}px`;
 		mediaContainer.style.height = `${reactRootHeight}px`;
 		mediaContainer.style.maxHeight = `${reactRootHeight}px`;
 
+		const media = currentMedia(tweetIndex);
+		if (media) {
+			setupMediaElement(media);
+			mediaContainer.appendChild(mediaElement);
+		}
+
+		setupOverviewGrid();
 		overviewGrid.style.maxWidth = `${reactRootWidth}px`;
 		overviewGrid.style.width = `${reactRootWidth}px`;
 		overviewGrid.style.height = `${reactRootHeight}px`;
 		overviewGrid.style.maxHeight = `${reactRootHeight}px`;
+		mediaContainer.appendChild(overviewGrid);
+
+		// overlay = document.createElement('div');
+		// overlay.classList.add('overlay');
+		// overlay.style.position = 'fixed';
+		// overlay.style.top = '0';
+		// overlay.style.left = '0';
+		// overlay.style.right = '0';
+		// overlay.style.bottom = '0';
+		// overlay.style.display = 'none';
+		// overlay.style.zIndex = '9999';
+		// document.body.appendChild(overlay);
+
+		// channels.forEach(name => {
+		// 	const channelElement = document.createElement('div');
+		// 	channelElement.classList.add('channel');
+		// 	channelElement.textContent = name;
+		// 	overlay.appendChild(channelElement);
+		// });
+
+		return mediaContainer;
 	}
 
 	init();

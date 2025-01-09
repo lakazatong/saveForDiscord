@@ -14,33 +14,32 @@ function reduceForRegex(inputString, targetString) {
 	return result;
 }
 
-(function () {
-	let code;
-
+(async function () {
 	const userMediaRegex = new RegExp('queryId:"(.+)",operationName:"UserMedia"', 'gm');
 
-	fetch('https://abs.twimg.com/responsive-web/client-web/main.73234c5a.js')
-		.then(response => response.text())
-		.then(body => {
-			code = userMediaRegex.exec(reduceForRegex(body, 'UserMedia'))[1];
-		})
-		.catch(err => { });
+	for (const link of document.head.querySelectorAll(':scope > link')) {
+		if (!(/^https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.\w+\.js$/.test(link.href))) continue;
+		
+		const code = userMediaRegex.exec(reduceForRegex(await (await fetch(link.href)).text(), 'UserMedia'))[1];
 
-	const originalOpen = XMLHttpRequest.prototype.open;
-	XMLHttpRequest.prototype.open = function (method, url) {
-		// console.log('XMLHttpRequest', url);
+		const originalOpen = XMLHttpRequest.prototype.open;
+		XMLHttpRequest.prototype.open = function (method, url) {
+			// console.log('XMLHttpRequest', url);
 
-		if (url.startsWith(`https://x.com/i/api/graphql/${code}/UserMedia`)) {
-			this.addEventListener('load', function() {
-				window.postMessage({
-					action: 'UserMediaResponse',
-					body: this.responseText,
-				}, '*');
-			});
+			if (url.startsWith(`https://x.com/i/api/graphql/${code}/UserMedia`)) {
+				this.addEventListener('load', function() {
+					window.postMessage({
+						action: 'UserMediaResponse',
+						body: this.responseText,
+					}, '*');
+				});
+			};
+
+			originalOpen.apply(this, arguments);
 		};
 
-		originalOpen.apply(this, arguments);
-	};
+		break;
+	}
 
 	const originalFetch = window.fetch;
 	window.fetch = async function (...args) {
@@ -57,8 +56,7 @@ function reduceForRegex(inputString, targetString) {
 
 			return response;
 		} catch (error) {
-			console.error('Fetch error:', error);
-			throw error;
+			console.error('fetch(', ...args, '):', error);
 		}
 	};
 })();

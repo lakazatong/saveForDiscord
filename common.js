@@ -81,6 +81,29 @@ window.uuid ??= generateUUID();
 
 // Utils
 
+class DeferredFunction {
+	constructor() {
+		this.fn = null;
+		this.queue = [];
+	}
+
+	define(fn) {
+		this.fn = fn;
+		while (this.queue.length > 0) {
+			const { context, args } = this.queue.shift();
+			this.fn.apply(context, args);
+		}
+	}
+
+	call(context = null, ...args) {
+		if (typeof this.fn === 'function') {
+			this.fn.apply(context, args);
+		} else {
+			this.queue.push({ context, args });
+		}
+	}
+}
+
 // because apparently JS doesn't have this
 function insort(array, obj, getKey = x => x) {
 	let index = array.findIndex(item => getKey(obj) < getKey(item));
