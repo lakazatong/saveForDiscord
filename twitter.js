@@ -219,7 +219,6 @@ window.addEventListener('commonLoaded', () => {
 	
 	let mediaType;
 	let mediaElement;
-	let overviewMediaElement;
 	let overviewMediaContainer;
 
 	let mediaContainer;
@@ -246,7 +245,7 @@ window.addEventListener('commonLoaded', () => {
 	let highlightedChannel = 0;
 	const channels = ['Channel 1', 'Channel 2', 'Channel 3', 'Channel 4'];
 	const toggleChannelsKeyCode = 'KeyC';
-	const toggleOverviewKeyCode = 'KeyV';
+	const setOverviewKeyCode = 'KeyV';
 	const toggleVideoFullScreenKeyCode = 'KeyF';
 
 	const currentMedia = function () {
@@ -274,40 +273,24 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function toggleOverview() {
-		overviewVisible = !overviewVisible;
+	function setOverview(set) {
+		overviewVisible = set;
 		if (overviewVisible) {
 			mediaElement.style.display = 'none';
 			overviewGrid.style.display = 'grid';
 
+			overviewTweetIndex.set(tweetIndex);
+			updateOverviewMedia();
 			overviewGrid.addEventListener('keydown', handleKeydownEvent);
 			overviewGrid.focus();
-			return true;
 		} else {
 			overviewGrid.style.display = 'none';
 			mediaElement.style.removeProperty('display');
 
+			updateMedia();
 			mediaElement.addEventListener('keydown', handleKeydownEvent);
 			mediaElement.focus();
-			return false;
 		}
-	}
-
-	function updateOverviewMedia() {
-		const tweet = tweets[overviewTweetIndex.index];
-		const medias = tweet.medias;
-		const media = medias[tweet.cur];
-		
-		if (
-			media.type === 'photo' && (overviewMediaElement = overviewMediaContainer.querySelector('img')) ||
-			media.type === 'video' && (overviewMediaElement = overviewMediaContainer.querySelector('video'))
-		) {
-			overviewMediaElement.src = media.src;
-		} else {
-			overviewMediaElement = setupOverviewMediaElement(overviewMediaContainer, tweet);
-		}
-
-		overviewMediaContainer.querySelector('span').textContent = `${tweet.cur + 1}/${medias.length}`;
 	}
 
 	const overviewTweetIndex = {
@@ -316,14 +299,14 @@ window.addEventListener('commonLoaded', () => {
 		get() {
 			return this.index % overviewGridSize;
 		},
-		async set(newIndex) {
+		set(newIndex) {
 			if (newIndex === this.index) return;
 			this.index = newIndex;
 			const newBatchIndex = Math.floor(newIndex / overviewGridSize);
 			
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
-				await renderOverview();
+				renderOverview();
 			} else {
 				overviewMediaContainer?.classList.remove('overview-highlighted');
 				overviewMediaContainer = overviewGrid.children[overviewTweetIndex.get()];
@@ -346,7 +329,8 @@ window.addEventListener('commonLoaded', () => {
 			}
 		},
 		down() {
-			if (this.index >= (tweets.length - (tweets.length % overviewGridWidth))) {
+			const overflow = tweets.length % overviewGridWidth;
+			if (this.index >= (tweets.length - (overflow ? overflow : overviewGridWidth))) {
 				this.set(this.index % overviewGridWidth);
 			} else {
 				this.set(Math.min(this.index + overviewGridWidth, tweets.length - 1));
@@ -354,82 +338,91 @@ window.addEventListener('commonLoaded', () => {
 		}
 	};
 
-	function setupOverviewMediaElement(index, tweet) {
-		const container = overviewGrid.children[index % overviewGridSize];
-		const media = tweet.medias[tweet.cur];
+	function setupOverviewMediaElement(container, tweet) {
+		const medias = tweet.medias;
+		const media = medias[tweet.cur];
 		
 		let elm = container.querySelector(media.type === 'photo' ? 'img' : 'video');
-		if (!elm) {
+		if (elm) {
+			if (medias.length > 1) {
+				const counter = container.querySelector('span');
+				if (counter) counter.textContent = `${tweet.cur + 1}/${medias.length}`;
+			}
+		} else {
 			container.innerHTML = '';
 			elm = media.type === 'photo' ? document.createElement('img') : newVideoMediaElement();
 			
 			elm.classList.add('overview-grid-image');
-
-			elm.addEventListener('load', () => {
-				// if (media.type === 'video') {
-				// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-				// 	svg.setAttribute('width', '20%');
-				// 	svg.setAttribute('padding-top', '20%');
-				// 	svg.setAttribute('viewBox', '0 0 20 20');
-				// 	svg.setAttribute('fill', 'white');
-				// 	svg.style.position = 'absolute';
-				// 	svg.style.top = '50%';
-				// 	svg.style.left = '50%';
-				// 	svg.style.transform = 'translate(-50%, -50%)';
-				// 	svg.style.borderRadius = '50%';
-				// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-				// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
-				// 	container.appendChild(svg);
-				// }
-
-				if (tweet.medias.length > 1) {
+			
+			if (medias.length > 1) {
+				elm.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata', () => {
+					
+					// if (media.type === 'video') {
+					// 	const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+					// 	svg.setAttribute('width', '20%');
+					// 	svg.setAttribute('padding-top', '20%');
+					// 	svg.setAttribute('viewBox', '0 0 20 20');
+					// 	svg.setAttribute('fill', 'white');
+					// 	svg.style.position = 'absolute';
+					// 	svg.style.top = '50%';
+					// 	svg.style.left = '50%';
+					// 	svg.style.transform = 'translate(-50%, -50%)';
+					// 	svg.style.borderRadius = '50%';
+					// 	svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+					// 	svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
+					// 	container.appendChild(svg);
+					// }
+					
 					const counter = document.createElement('span');
 					counter.setAttribute('width', '25%');
 					counter.setAttribute('height', 'auto');
-					counter.textContent = `${tweet.cur + 1}/${tweet.medias.length}`;
+					counter.textContent = `${tweet.cur + 1}/${medias.length}`;
 					counter.style.position = 'absolute';
 					counter.style.bottom = '5%';
 					counter.style.right = '7%';
 					counter.style.color = 'white';
 					container.appendChild(counter);
-				}
-			}, { once: true });
-			
+				
+				}, { once: true });
+			}
 			container.appendChild(elm);
 		}
 
 		elm.src = media.src;
-		
-		if (index === overviewTweetIndex.index) {
-			overviewMediaContainer?.classList.remove('overview-highlighted');
-			overviewMediaContainer = container;
-			overviewMediaContainer.classList.add('overview-highlighted');
-			overviewMediaElement = elm;
-		}
-
-		return elm;
 	}
 
-	async function renderOverview() {
+	function renderOverview() {
 		const start = overviewTweetIndex.batchIndex * overviewGridSize;
 		const end = Math.min(start + overviewGridSize, mediaCount);
-		let sliced = tweets.slice(start, end);
-		if (sliced.length < end - start) {
-			await new Promise(function (resolve, reject) {
-				const subsriberId = generateUUID();
-				tweetsMediasSubscribers.set(subsriberId, function (newTweet) {
-					sliced = tweets.slice(start, end);
-					if (sliced.length < end - start) return;
-					tweetsMediasSubscribers.delete(subsriberId);
-					resolve();
-				});
+		let index = start;
+		let localIndex;
+		for (; index < end; index++) {
+			localIndex = index % overviewGridSize;
+			if (tweetsMediasSubscribers.get(localIndex)) tweetsMediasSubscribers.delete(localIndex);
+			let tweet = tweets?.[index];
+			const container = overviewGrid.children[localIndex];
+			if (index === overviewTweetIndex.index) {
+				container.classList.add('overview-highlighted');
+				overviewMediaContainer = container;
+			} else {
+				container.classList.remove('overview-highlighted');
+			}
+			if (tweet) {
+				setupOverviewMediaElement(container, tweet);
+				continue;
+			}
+			container.innerHTML = '';
+			tweetsMediasSubscribers.set(localIndex, function (newTweet) {
+				tweet = tweets?.[index];
+				if (!tweet) return;
+				tweetsMediasSubscribers.delete(localIndex);
+				setupOverviewMediaElement(container, tweet);
 			});
 		}
-		sliced.forEach((tweet, localIndex) => setupOverviewMediaElement(start + localIndex, tweet));
-		let localIndex = end % overviewGridSize;
-		while (localIndex > 0) {
-			overviewGrid.children[localIndex].innerHTML = '';
-			localIndex = (localIndex + 1) % overviewGridSize;
+		while (++localIndex < overviewGridSize) {
+			const container = overviewGrid.children[localIndex];
+			container.innerHTML = '';
+			container.classList.remove('overview-highlighted');
 		}
 		updateReactRootDims();
 	}
@@ -469,6 +462,10 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
+	function updateOverviewMedia() {
+		setupOverviewMediaElement(overviewMediaContainer, tweets[overviewTweetIndex.index]);
+	}
+
 	function handleOverviewKeydownEvent(e) {
 		const index = overviewTweetIndex.index;
 		switch (e.code) {
@@ -498,13 +495,12 @@ window.addEventListener('commonLoaded', () => {
 				break;
 			case 'Enter':
 				tweetIndex = overviewTweetIndex.index;
-				updateMedia();
-				toggleOverview();
+				setOverview(false);
 				e.preventDefault();
 				break;
-			case toggleOverviewKeyCode:
+			case setOverviewKeyCode:
 			case 'Escape':
-				toggleOverview();
+				setOverview(false);
 				e.preventDefault();
 				break;
 		}
@@ -557,9 +553,9 @@ window.addEventListener('commonLoaded', () => {
 					toggleChannels();
 					e.preventDefault();
 					break;
-				case toggleOverviewKeyCode:
+				case setOverviewKeyCode:
 					if (document.fullscreenElement) break;
-					toggleOverview();
+					setOverview(true);
 					e.preventDefault();
 					break;
 			}
@@ -569,10 +565,8 @@ window.addEventListener('commonLoaded', () => {
 					toggleChannels();
 					e.preventDefault();
 					break;
-				case toggleOverviewKeyCode:
-					if (toggleOverview()) {
-						await overviewTweetIndex.set(tweetIndex);
-					}
+				case setOverviewKeyCode:
+					setOverview(true);
 					e.preventDefault();
 					break;
 			}
