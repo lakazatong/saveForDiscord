@@ -133,7 +133,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 	if (!callback) return;
 
 	const key = String(tabId);
-	
+
 	if (!tabsState[key]) tabsState[key] = {};
 
 	if (changeInfo.status === 'complete') {

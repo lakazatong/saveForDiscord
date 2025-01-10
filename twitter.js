@@ -70,7 +70,7 @@ window.addEventListener('commonLoaded', () => {
 		const reactRoot = document.getElementById('react-root');
 		return [reactRoot.offsetWidth - 1, reactRoot.offsetHeight - 1];
 	}
-	
+
 	function updateReactRootDims() {
 		const reactRoot = document.getElementById('react-root');
 		const w = Math.floor((reactRoot.offsetWidth - 1) / overviewGridWidth);
@@ -137,7 +137,7 @@ window.addEventListener('commonLoaded', () => {
 	function updateMedia() {
 		const media = currentMedia(tweetIndex.value);
 		if (!media) return;
-		
+
 		ensureEnoughTweets(tweetIndex.value);
 
 		if (media.type === mediaElementType()) {
@@ -246,9 +246,9 @@ window.addEventListener('commonLoaded', () => {
 			this.value = newIndex;
 
 			const newBatchIndex = getBatchIndex(this.value);
-			
+
 			beforeMediaChange(getOverviewContainer(oldIndex).querySelector('video'), oldIndex);
-			
+
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
 				renderOverview();
@@ -336,7 +336,7 @@ window.addEventListener('commonLoaded', () => {
 		} else {
 			elm = newVideoMediaElement();
 			elm.src = media.src;
-			
+
 			if (isSelected) {
 				elm.currentTime = media.currentTime;
 				elm.play();
@@ -496,7 +496,7 @@ window.addEventListener('commonLoaded', () => {
 
 	async function handleKeydownEvent(e) {
 		// console.log(e.code);
-		
+
 		if (document.fullscreenElement) {
 			if (e.code === toggleVideoFullScreenKeyCode) document.exitFullscreen();
 			return;
@@ -545,7 +545,7 @@ window.addEventListener('commonLoaded', () => {
 
 	function setupMediaElement(media) {
 		mediaElement?.remove();
-		
+
 		if (media.type === 'photo') {
 			mediaElement = document.createElement('img');
 			mediaElement.src = media.src;
@@ -568,7 +568,7 @@ window.addEventListener('commonLoaded', () => {
 		mediaElement.addEventListener('keydown', handleKeydownEvent);
 
 		mediaContainer.appendChild(mediaElement);
-		
+
 		mediaElement.focus();
 	}
 
@@ -604,7 +604,7 @@ window.addEventListener('commonLoaded', () => {
 
 	function setupNavigationSystem() {
 		const [reactRootWidth, reactRootHeight] = getReactRootDims();
-		
+
 		setupMediaContainer();
 		mediaContainer.style.width = `${reactRootWidth}px`;
 		mediaContainer.style.maxWidth = `${reactRootWidth}px`;
@@ -768,7 +768,7 @@ window.addEventListener('commonLoaded', () => {
 			observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
 			// hacky but it works
 			actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
-			
+
 			function mediaSectionCallback(mediaSection) {
 				mediaSection.style.position = 'relative';
 				mediaSection.style.overflow = 'hidden';

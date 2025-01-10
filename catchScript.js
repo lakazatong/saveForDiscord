@@ -19,7 +19,7 @@ function reduceForRegex(inputString, targetString) {
 
 	for (const link of document.head.querySelectorAll(':scope > link')) {
 		if (!(/^https:\/\/abs\.twimg\.com\/responsive-web\/client-web\/main\.\w+\.js$/.test(link.href))) continue;
-		
+
 		const code = userMediaRegex.exec(reduceForRegex(await (await fetch(link.href)).text(), 'UserMedia'))[1];
 
 		const originalOpen = XMLHttpRequest.prototype.open;
@@ -27,7 +27,7 @@ function reduceForRegex(inputString, targetString) {
 			// console.log('XMLHttpRequest', url);
 
 			if (url.startsWith(`https://x.com/i/api/graphql/${code}/UserMedia`)) {
-				this.addEventListener('load', function() {
+				this.addEventListener('load', function () {
 					window.postMessage({
 						action: 'UserMediaResponse',
 						body: this.responseText,
@@ -47,7 +47,7 @@ function reduceForRegex(inputString, targetString) {
 			// console.log('fetch', args[0])
 
 			const response = await originalFetch(...args);
-			
+
 			// if (args[0].startsWith(<url>) && response.status === 200) {
 			// 	const clonedResponse = response.clone();
 			// 	const body = await clonedResponse.text();

@@ -45,8 +45,8 @@
 	"content_scripts": [],
 	"web_accessible_resources": [
 		{
-			"resources": [ "catchScript.js" ],
-			"matches": [ "*://x.com/*" ]
+			"resources": ["catchScript.js"],
+			"matches": ["*://x.com/*"]
 		}
 	]
 }
