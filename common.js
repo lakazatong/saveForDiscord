@@ -81,27 +81,65 @@ window.uuid ??= generateUUID();
 
 // Utils
 
-class DeferredFunction {
-	constructor() {
-		this.fn = null;
-		this.queue = [];
-	}
+if (!window.DeferredFunction) {
+	class DeferredFunction {
+		constructor() {
+			this.fn = null;
+			this.queue = [];
+			this.isRunning = false;
+		}
 
-	define(fn) {
-		this.fn = fn;
-		while (this.queue.length > 0) {
-			const { context, args } = this.queue.shift();
-			this.fn.apply(context, args);
+		define(fn) {
+			this.fn = fn;
+			if (!this.isRunning && this.queue.length > 0) {
+				this.processQueue();
+			}
+		}
+
+		call(context = null, ...args) {
+			const now = Date.now();
+			this.queue.push({ context, args, timestamp: now });
+			if (!this.isRunning && this.fn) {
+				this.processQueue();
+			}
+		}
+
+		async processQueue() {
+			this.isRunning = true;
+
+			let startTime;
+			let previousTimestamp = 0;
+
+			while (this.queue.length > 0) {
+				const { context, args, timestamp } = this.queue.shift();
+
+				startTime ??= timestamp;
+				const relativeTimestamp = timestamp - startTime;
+
+				if (previousTimestamp) {
+					const delay = Math.max(0, relativeTimestamp - (Date.now() - startTime));
+					await new Promise(resolve => setTimeout(resolve, delay));
+				}
+
+				if (this.fn) {
+					await this.fn.apply(context, args);
+				}
+
+				previousTimestamp = relativeTimestamp;
+			}
+
+			this.isRunning = false;
 		}
 	}
+	window.DeferredFunction = DeferredFunction;
+}
 
-	call(context = null, ...args) {
-		if (typeof this.fn === 'function') {
-			this.fn.apply(context, args);
-		} else {
-			this.queue.push({ context, args });
-		}
-	}
+function debounce(fn, delay) {
+	let timer;
+	return (...args) => {
+		clearTimeout(timer);
+		timer = setTimeout(() => fn(...args), delay);
+	};
 }
 
 // because apparently JS doesn't have this

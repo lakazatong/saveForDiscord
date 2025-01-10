@@ -16,7 +16,6 @@
 	];
 
 	let lastUrl;
-	let updateTimeout;
 
 	function update() {
 		const url = window.location.href;
@@ -39,13 +38,6 @@
 		lastUrl = url;
 	}
 
-	window.addEventListener('popstate', function (event) {
-		if (updateTimeout) {
-			clearTimeout(updateTimeout);
-		}
-		updateTimeout = setTimeout(() => {
-			update();
-		}, 100);
-	});
+	window.addEventListener('popstate', debounce(update, 100));
 
 })();

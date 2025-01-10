@@ -76,7 +76,7 @@ window.addEventListener('commonLoaded', () => {
 	function addButtons(divs) {
 		if (container.querySelector(`*[id="${window.uuid}"]`)) return;
 		if (!divs) divs = container.querySelectorAll('div[role="presentation"]');
-		
+
 		// set buttons instead of adding them JUST TO BE 100% SURE bruh
 		console.log('setting buttons');
 		enabledButtons.length = 0;
@@ -86,7 +86,7 @@ window.addEventListener('commonLoaded', () => {
 			}
 			buttons.shift();
 		}
-		
+
 		for (let i = 0; i < divs.length; i++) {
 			const div = divs[i];
 			div.parentElement.style.paddingTop = '0px';
@@ -95,7 +95,7 @@ window.addEventListener('commonLoaded', () => {
 			if (!(div instanceof HTMLDivElement)) continue;
 			let buttonsVisible = false;
 			let anchor = div.querySelector('a');
-			
+
 			for (let j = 0; j < 11; j++) {
 				const button = createButtonStyles(j, buttonsText[j]);
 				button.userData = {};
@@ -161,7 +161,7 @@ window.addEventListener('commonLoaded', () => {
 
 	function startPresentationDivsObserver(threshold, callback) {
 		const divs = Array.from(container.querySelectorAll('div[role="presentation"]'));
-		
+
 		if (divs.length >= threshold) {
 			callback(divs);
 			return;
@@ -403,13 +403,7 @@ window.addEventListener('commonLoaded', () => {
 
 		startObserverOnIntervalForMain(getMain, isMain, mainCallback);
 
-		let popstateTimeout;
-		window.addEventListener('popstate', function (event) {
-			if (popstateTimeout) clearTimeout(popstateTimeout);
-			popstateTimeout = setTimeout(() => {
-				withContainer(_ => containerCallback());
-			}, 100);
-		});
+		window.addEventListener('popstate', debounce(() => withContainer(_ => containerCallback()), 100));
 	}
 
 	init();
