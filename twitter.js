@@ -556,14 +556,19 @@ window.addEventListener('commonLoaded', () => {
 		}
 		mediaElement.id = 'media-element';
 		mediaElement.setAttribute('tabindex', '0');
-		mediaElement.addEventListener('keydown', handleKeydownEvent);
+		mediaElement.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata',
+			() => {
+				mediaElement.focus();
+				mediaContainer.scrollIntoView({
+					behavior: 'auto',
+					block: 'start',
+					inline: 'start'
+				});
+				mediaElement.addEventListener('keydown', handleKeydownEvent);
+			},
+			{ once: true }
+		);
 		mediaContainer.appendChild(mediaElement);
-		mediaElement.focus();
-		mediaContainer.scrollIntoView({
-			behavior: 'auto',
-			block: 'start',
-			inline: 'start'
-		});
 	}
 
 	function setupOverviewGrid(root) {
