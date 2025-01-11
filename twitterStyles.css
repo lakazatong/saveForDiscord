@@ -3,21 +3,63 @@
 }
 
 #react-root {
-	--overview-grid-image-width: 100%;
-	--overview-grid-image-height: 100%;
+	--react-root-width: 100%; /* reactRoot.offsetWidth - 1 */
+	--react-root-height: 100%; /* reactRoot.offsetHeight - 1 */
+
+	--overview-grid-columns: 8;
+	--overview-grid-rows: 4;
+
+	--overview-grid-gap: 2;
+
+	/* computed in JS from their respective --react-root-X and --overview-grid-X because CSS's calc cannot floor the result */
+	--overview-grid-media-width: 100%; /* floor(--react-root-width / --overview-grid-columns) */
+	--overview-grid-media-height: 100%; /* floor(--react-root-height / --overview-grid-rows) */
+
+	--overview-highlighted-scale: 1.3;
 }
 
-.overview-grid-image {
+#media-container {
+	overflow: hidden;
+}
+
+#media-element {
+	max-width: var(--react-root-width);
+	max-height: var(--react-root-height);
 	display: block;
-	width: 100%;
-	max-width: var(--overview-grid-image-width);
-	height: 100%;
-	max-height: var(--overview-grid-image-height);
-	object-fit: cover;
+	object-fit: contain;
 }
 
-.overview-highlighted {
-	transform: scale(1.3);
+#overview-grid {
+	max-width: var(--react-root-width);
+	max-height: var(--react-root-height);
+/*	grid-gap: var(--overview-grid-gap);*/
+	grid-template-columns: repeat(var(--overview-grid-columns), 1fr);
+	grid-template-rows: repeat(var(--overview-grid-rows), 1fr);
+}
+
+.overview-grid-container {
+	max-width: var(--overview-grid-media-width);
+	max-height: var(--overview-grid-media-height);
+	position: relative;
+	display: inline-block;
+}
+
+.overview-grid-media {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center;
+}
+
+.overview-grid-container.overview-highlighted .overview-grid-media {
+	transform: scale(var(--overview-highlighted-scale));
+	image-rendering: crisp-edges;
+	overflow: visible;
+}
+
+.overview-grid-container.overview-highlighted {
+/*	max-width: var(--react-root-width);*/
+/*	max-height: var(--react-root-height);*/
 	z-index: 1;
-    outline: 2px solid black;
+/*	border: 2px solid black;*/
 }

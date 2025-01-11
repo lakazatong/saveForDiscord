@@ -34,9 +34,9 @@ window.addEventListener('commonLoaded', () => {
 	};
 
 	let overviewGrid;
-	const overviewGridWidth = 8;
-	const overviewGridHeight = 5;
-	const overviewGridSize = overviewGridWidth * overviewGridHeight;
+	const overviewGridColumns = 8;
+	const overviewGridRows = 4;
+	const overviewGridSize = overviewGridColumns * overviewGridRows;
 	let overviewBatchIndex = 0;
 	let overviewContainer;
 	let overviewVisible = false;
@@ -55,7 +55,7 @@ window.addEventListener('commonLoaded', () => {
 	function ensureEnoughTweets(index) {
 		if (tweets.length === tweetsCount) return;
 
-		const batchIndex = Math.floor((index + overviewGridWidth) / overviewGridSize);
+		const batchIndex = Math.floor((index + overviewGridColumns) / overviewGridSize);
 		const requiredTweets = (batchIndex + 1) * overviewGridSize;
 
 		if (tweets.length < requiredTweets) {
@@ -71,12 +71,17 @@ window.addEventListener('commonLoaded', () => {
 		return [reactRoot.offsetWidth - 1, reactRoot.offsetHeight - 1];
 	}
 
-	function updateReactRootDims() {
+	function updateCSS() {
 		const reactRoot = document.getElementById('react-root');
-		const w = Math.floor((reactRoot.offsetWidth - 1) / overviewGridWidth);
-		const h = Math.floor((reactRoot.offsetHeight - 1) / overviewGridHeight);
-		reactRoot?.style.setProperty('--overview-grid-image-width', `${w}px`);
-		reactRoot?.style.setProperty('--overview-grid-image-height', `${h}px`);
+		if (!reactRoot) return;
+		const w = reactRoot.offsetWidth - 1;
+		const h = reactRoot.offsetHeight - 1;
+		reactRoot.style.setProperty('--react-root-width', `${w}px`);
+		reactRoot.style.setProperty('--react-root-height', `${h}px`);
+		reactRoot.style.setProperty('--overview-grid-columns', `${overviewGridColumns}`);
+		reactRoot.style.setProperty('--overview-grid-rows', `${overviewGridRows}`);
+		reactRoot.style.setProperty('--overview-grid-media-width', `${Math.floor(w / overviewGridColumns)}px`);
+		reactRoot.style.setProperty('--overview-grid-media-height', `${Math.floor(h / overviewGridRows)}px`);
 	}
 
 	function stripUrlAndAppendFormat(url) {
@@ -145,6 +150,11 @@ window.addEventListener('commonLoaded', () => {
 			if (mediaElement.currentTime >= 0) mediaElement.currentTime = media.currentTime;
 			mediaElement.play?.();
 			mediaElement.focus();
+			mediaContainer.scrollIntoView({
+				behavior: 'auto',
+				block: 'start',
+				inline: 'start'
+			});
 			return true;
 		} else {
 			setupMediaElement(media);
@@ -266,20 +276,20 @@ window.addEventListener('commonLoaded', () => {
 			this.set(this.value === tweets.length - 1 ? 0 : this.value + 1);
 		},
 		up() {
-			if (this.value < overviewGridWidth) {
+			if (this.value < overviewGridColumns) {
 				let newIndex = tweets.length - 1;
-				const left = newIndex % overviewGridWidth;
+				const left = newIndex % overviewGridColumns;
 				this.set(newIndex - Math.max(0, left - this.value));
 			} else {
-				this.set(this.value - overviewGridWidth);
+				this.set(this.value - overviewGridColumns);
 			}
 		},
 		down() {
-			const overflow = tweets.length % overviewGridWidth;
-			if (this.value >= (tweets.length - (overflow ? overflow : overviewGridWidth))) {
-				this.set(this.value % overviewGridWidth);
+			const overflow = tweets.length % overviewGridColumns;
+			if (this.value >= (tweets.length - (overflow ? overflow : overviewGridColumns))) {
+				this.set(this.value % overviewGridColumns);
 			} else {
-				this.set(Math.min(this.value + overviewGridWidth, tweets.length - 1));
+				this.set(Math.min(this.value + overviewGridColumns, tweets.length - 1));
 			}
 		}
 	};
@@ -346,7 +356,7 @@ window.addEventListener('commonLoaded', () => {
 			}
 		}
 
-		elm.classList.add('overview-grid-image');
+		elm.classList.add('overview-grid-media');
 		if (mark) elm.setAttribute('data-uuid', uuid);
 		container.appendChild(elm);
 
@@ -392,7 +402,11 @@ window.addEventListener('commonLoaded', () => {
 				container.classList.remove('overview-highlighted');
 			}
 		}
-		updateReactRootDims();
+		mediaContainer.scrollIntoView({
+			behavior: 'auto',
+			block: 'start',
+			inline: 'start'
+		});
 	}
 
 	let updateOverviewMediaPromise;
@@ -545,7 +559,6 @@ window.addEventListener('commonLoaded', () => {
 
 	function setupMediaElement(media) {
 		mediaElement?.remove();
-
 		if (media.type === 'photo') {
 			mediaElement = document.createElement('img');
 			mediaElement.src = media.src;
@@ -554,72 +567,42 @@ window.addEventListener('commonLoaded', () => {
 			mediaElement.src = media.src;
 			mediaElement.currentTime = media.currentTime;
 			mediaElement.play();
-			mediaElement.style.width = media.width;
-			mediaElement.style.height = media.height;
 		}
-
+		mediaElement.id = 'media-element';
 		mediaElement.setAttribute('tabindex', '0');
-
-		mediaElement.style.maxWidth = '100%';
-		mediaElement.style.maxHeight = '100%';
-		mediaElement.style.objectFit = 'contain';
-		mediaElement.style.border = '0';
-
 		mediaElement.addEventListener('keydown', handleKeydownEvent);
-
 		mediaContainer.appendChild(mediaElement);
-
 		mediaElement.focus();
-	}
-
-	function setupMediaContainer() {
-		mediaContainer = document.createElement('div');
-
-		mediaContainer.id = 'media-container';
-		mediaContainer.style.position = 'relative';
-		mediaContainer.style.overflow = 'hidden';
-		mediaContainer.style.zIndex = '0';
+		mediaContainer.scrollIntoView({
+			behavior: 'auto',
+			block: 'start',
+			inline: 'start'
+		});
 	}
 
 	function setupOverviewGrid(root) {
 		overviewGrid = document.createElement('div');
-
+		overviewGrid.id = 'overview-grid';
 		overviewGrid.setAttribute('tabindex', '0');
-		overviewGrid.style.objectFit = 'contain';
 		overviewGrid.style.display = 'none';
-		overviewGrid.style.gridTemplateColumns = `repeat(${overviewGridWidth}, 1fr)`;
-		overviewGrid.style.gridTemplateRows = `repeat(${overviewGridHeight}, 1fr)`;
-		overviewGrid.style.gridGap = '2px';
-
 		for (let i = 0; i < overviewGridSize; i++) {
 			const container = document.createElement('div');
-
-			container.style.display = 'contents';
-			container.style.position = 'relative';
-			container.style.display = 'inline-block';
-
+			container.classList.add('overview-grid-container');
 			overviewGrid.appendChild(container);
 		}
+		mediaContainer.appendChild(overviewGrid);
 	}
 
 	function setupNavigationSystem() {
-		const [reactRootWidth, reactRootHeight] = getReactRootDims();
+		updateCSS();
 
-		setupMediaContainer();
-		mediaContainer.style.width = `${reactRootWidth}px`;
-		mediaContainer.style.maxWidth = `${reactRootWidth}px`;
-		mediaContainer.style.height = `${reactRootHeight}px`;
-		mediaContainer.style.maxHeight = `${reactRootHeight}px`;
+		mediaContainer = document.createElement('div');
+		mediaContainer.id = 'media-container';
 
 		const media = currentMedia(tweetIndex.value);
 		if (media) setupMediaElement(media);
 
 		setupOverviewGrid();
-		overviewGrid.style.maxWidth = `${reactRootWidth}px`;
-		overviewGrid.style.width = `${reactRootWidth}px`;
-		overviewGrid.style.height = `${reactRootHeight}px`;
-		overviewGrid.style.maxHeight = `${reactRootHeight}px`;
-		mediaContainer.appendChild(overviewGrid);
 
 		// overlay = document.createElement('div');
 		// overlay.classList.add('overlay');
@@ -655,8 +638,8 @@ window.addEventListener('commonLoaded', () => {
 		marker.id = window.uuid;
 		document.body.appendChild(marker);
 
-		window.addEventListener('resize', updateReactRootDims);
-		new ResizeObserver(updateReactRootDims).observe(document.getElementById('react-root'));
+		window.addEventListener('resize', updateCSS);
+		new ResizeObserver(updateCSS).observe(document.getElementById('react-root'));
 
 		window.addEventListener('message', function (event) {
 			if (event.data?.action !== 'UserMediaResponse' || !document.location.href.endsWith('media')) return;
@@ -682,6 +665,7 @@ window.addEventListener('commonLoaded', () => {
 				insort(tweets, tweet, media => -media.createdAt);
 				newTweetsSubscribers.forEach(callback => callback(newTeet));
 			});
+			
 			const percentage = Math.round(tweets.length / tweetsCount * 100, 2);
 			console.log(`got ${tweets.length}/${tweetsCount} media tweets (${percentage}%)`);
 			insertMediaSection.call();
@@ -775,12 +759,15 @@ window.addEventListener('commonLoaded', () => {
 				observeNthChild(mediaSection, [1, 0], timelineCallback);
 				if (document.location.href.endsWith('media')) {
 					insertMediaSection.define(function () {
-						if (!actualPrimaryColumn.querySelector('div[id="media-container"]')) {
+						if (!actualPrimaryColumn.querySelector('div[id="media-container"]'))
 							actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
-							mediaElement?.focus();
-						}
 					});
 				}
+				mediaContainer.scrollIntoView({
+					behavior: 'auto',
+					block: 'start',
+					inline: 'start'
+				});
 			}
 			startObserver(actualPrimaryColumn,
 				() => actualPrimaryColumn.querySelector('section[role="region"]'),
