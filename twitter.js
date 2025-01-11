@@ -36,6 +36,7 @@ window.addEventListener('commonLoaded', () => {
 	let overviewGrid;
 	const overviewGridColumns = 8;
 	const overviewGridRows = 4;
+	const overviewGridGap = 2; // in px
 	const overviewGridSize = overviewGridColumns * overviewGridRows;
 	let overviewBatchIndex = 0;
 	let overviewContainer;
@@ -74,14 +75,13 @@ window.addEventListener('commonLoaded', () => {
 	function updateCSS() {
 		const reactRoot = document.getElementById('react-root');
 		if (!reactRoot) return;
-		const w = reactRoot.offsetWidth - 1;
-		const h = reactRoot.offsetHeight - 1;
+		const w = reactRoot.offsetWidth;
+		const h = reactRoot.offsetHeight;
 		reactRoot.style.setProperty('--react-root-width', `${w}px`);
 		reactRoot.style.setProperty('--react-root-height', `${h}px`);
 		reactRoot.style.setProperty('--overview-grid-columns', `${overviewGridColumns}`);
 		reactRoot.style.setProperty('--overview-grid-rows', `${overviewGridRows}`);
-		reactRoot.style.setProperty('--overview-grid-media-width', `${Math.floor(w / overviewGridColumns)}px`);
-		reactRoot.style.setProperty('--overview-grid-media-height', `${Math.floor(h / overviewGridRows)}px`);
+		reactRoot.style.setProperty('--overview-grid-gap', `${overviewGridGap}`);
 	}
 
 	function stripUrlAndAppendFormat(url) {
@@ -139,6 +139,33 @@ window.addEventListener('commonLoaded', () => {
 		return mediaElement.tagName === 'IMG' ? 'photo' : 'video';
 	}
 
+	function setupView(e) {
+		function help() {
+			e.addEventListener('keydown', handleKeydownEvent);
+			e.scrollIntoView({
+				behavior: 'auto',
+				block: 'start',
+				inline: 'start'
+			});
+			e.focus();
+		}
+		if (e.tagName === 'IMG') {
+			if (e.complete && e.naturalHeight !== 0) {
+				help();
+			} else {
+				e.addEventListener('load', help, { once: true });
+			}
+		} else if (e.tagName === 'VIDEO') {
+			if (e.readyState >= 3) {
+				help();
+			} else {
+				e.addEventListener('canplaythrough', help, { once: true });
+			}
+		} else {
+			help();
+		}
+	}
+
 	function updateMedia() {
 		const media = currentMedia(tweetIndex.value);
 		if (!media) return;
@@ -147,18 +174,11 @@ window.addEventListener('commonLoaded', () => {
 
 		if (media.type === mediaElementType()) {
 			mediaElement.src = media.src;
+			setupView(mediaElement);
 			if (mediaElement.currentTime >= 0) mediaElement.currentTime = media.currentTime;
 			mediaElement.play?.();
-			mediaElement.focus();
-			mediaContainer.scrollIntoView({
-				behavior: 'auto',
-				block: 'start',
-				inline: 'start'
-			});
-			return true;
 		} else {
 			setupMediaElement(media);
-			return false;
 		}
 	}
 
@@ -180,9 +200,7 @@ window.addEventListener('commonLoaded', () => {
 		overviewTweetIndex.value = index;
 		overviewTweetIndex.batchIndex = getBatchIndex(index);
 		renderOverview();
-		overviewGrid.addEventListener('keydown', handleKeydownEvent);
 
-		overviewGrid.focus();
 		overviewVisible = true;
 	}
 
@@ -192,7 +210,7 @@ window.addEventListener('commonLoaded', () => {
 		mediaElement.style.removeProperty('display');
 
 		tweetIndex.value = index;
-		if (updateMedia()) mediaElement.addEventListener('keydown', handleKeydownEvent);
+		updateMedia();
 
 		overviewVisible = false;
 	}
@@ -348,7 +366,7 @@ window.addEventListener('commonLoaded', () => {
 
 		if (medias.length <= 1) return uuid;
 
-		return new Promise((resolve) => elm.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata',
+		return new Promise((resolve) => elm.addEventListener(media.type === 'photo' ? 'load' : 'canplaythrough',
 			() => {
 				const counter = addCounter(container);
 				counter.textContent = `${tweet.cur + 1}/${medias.length}`;
@@ -388,11 +406,8 @@ window.addEventListener('commonLoaded', () => {
 				container.classList.remove('overview-highlighted');
 			}
 		}
-		mediaContainer.scrollIntoView({
-			behavior: 'auto',
-			block: 'start',
-			inline: 'start'
-		});
+		// const firstOverviewContainer = overviewGrid.children[0];
+		setupView(overviewGrid);
 	}
 
 	let updateOverviewMediaPromise;
@@ -453,6 +468,8 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	function handleOverviewKeydownEvent(e) {
+		// console.log(e.code);
+
 		const index = overviewTweetIndex.value;
 
 		const help = () => beforeMediaChange(overviewContainer.querySelector('video'), index);
@@ -495,15 +512,18 @@ window.addEventListener('commonLoaded', () => {
 	}
 
 	async function handleKeydownEvent(e) {
-		// console.log(e.code);
+		console.log(e.code);
 
 		if (document.fullscreenElement) {
-			if (e.code === toggleVideoFullScreenKeyCode) document.exitFullscreen();
+			if (e.code === toggleVideoFullScreenKeyCode) {
+				document.exitFullscreen();
+				document.addEventListener('fullscreenchange', () => setupView(mediaElement), { once: true });
+			}
 			return;
 		}
 
-		// if (overlayVisible) return handleOverlayKeydownEvent(e);
 		if (overviewVisible) return handleOverviewKeydownEvent(e);
+		// if (overlayVisible) return handleOverlayKeydownEvent(e);
 
 		switch (e.code) {
 			case 'ArrowRight':
@@ -535,7 +555,7 @@ window.addEventListener('commonLoaded', () => {
 				e.preventDefault();
 				break;
 			case toggleVideoFullScreenKeyCode:
-				mediaElement.requestFullscreen();
+				mediaContainer.requestFullscreen();
 				e.preventDefault();
 				break;
 			case 'Space':
@@ -556,33 +576,23 @@ window.addEventListener('commonLoaded', () => {
 		if (media.type === 'photo') {
 			mediaElement = document.createElement('img');
 			mediaElement.src = media.src;
+			setupView(mediaElement);
 		} else {
 			mediaElement = newVideoMediaElement(true);
 			mediaElement.src = media.src;
+			setupView(mediaElement);
 			mediaElement.currentTime = media.currentTime;
 			mediaElement.play();
 		}
 		mediaElement.id = 'media-element';
 		mediaElement.setAttribute('tabindex', '0');
-		mediaElement.addEventListener(media.type === 'photo' ? 'load' : 'loadedmetadata',
-			() => {
-				mediaElement.focus();
-				mediaContainer.scrollIntoView({
-					behavior: 'auto',
-					block: 'start',
-					inline: 'start'
-				});
-				mediaElement.addEventListener('keydown', handleKeydownEvent);
-			},
-			{ once: true }
-		);
 		mediaContainer.appendChild(mediaElement);
 	}
 
 	function setupOverviewGrid(root) {
 		overviewGrid = document.createElement('div');
-		overviewGrid.id = 'overview-grid';
 		overviewGrid.setAttribute('tabindex', '0');
+		overviewGrid.id = 'overview-grid';
 		overviewGrid.style.display = 'none';
 		for (let i = 0; i < overviewGridSize; i++) {
 			const container = document.createElement('div');
