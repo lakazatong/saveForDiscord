@@ -331,7 +331,7 @@ window.addEventListener('commonLoaded', () => {
 			elm = document.createElement('img');
 			elm.src = media.src;
 		} else {
-			elm = newVideoMediaElement();
+			elm = newVideoMediaElement(false);
 			elm.src = media.src;
 			elm.currentTime = media.currentTime;
 			if (isSelected) {
@@ -507,12 +507,16 @@ window.addEventListener('commonLoaded', () => {
 
 		switch (e.code) {
 			case 'ArrowRight':
-				tweetIndex.right();
-				e.preventDefault();
+				if (!e.shiftKey) {
+					tweetIndex.right();
+					e.preventDefault();
+				}
 				break;
 			case 'ArrowLeft':
-				tweetIndex.left();
-				e.preventDefault();
+				if (!e.shiftKey) {
+					tweetIndex.left();
+					e.preventDefault();
+				}
 				break;
 			case 'ArrowDown':
 				tweetIndex.down();
@@ -534,12 +538,16 @@ window.addEventListener('commonLoaded', () => {
 				mediaElement.requestFullscreen();
 				e.preventDefault();
 				break;
+			case 'Space':
+				e.preventDefault();
+				break;
 		}
 	}
 
-	function newVideoMediaElement() {
+	function newVideoMediaElement(withControls) {
 		const r = document.createElement('video');
-		r.controls = r.loop = true;
+		r.controls = withControls;
+		r.loop = true;
 		return r;
 	}
 
@@ -549,7 +557,7 @@ window.addEventListener('commonLoaded', () => {
 			mediaElement = document.createElement('img');
 			mediaElement.src = media.src;
 		} else {
-			mediaElement = newVideoMediaElement();
+			mediaElement = newVideoMediaElement(true);
 			mediaElement.src = media.src;
 			mediaElement.currentTime = media.currentTime;
 			mediaElement.play();
