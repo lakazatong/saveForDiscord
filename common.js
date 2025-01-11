@@ -118,7 +118,7 @@ if (!window.DeferredFunction) {
 
 				if (previousTimestamp) {
 					const delay = Math.max(0, relativeTimestamp - (Date.now() - startTime));
-					await new Promise(resolve => setTimeout(resolve, delay));
+					await new Promise((resolve, reject) => setTimeout(resolve, delay));
 				}
 
 				if (this.fn) {
@@ -196,50 +196,59 @@ function getElementsByXPath(doc, xpath) {
 
 function getTraverse(check, callback) {
 	function traverse(node) {
-		if (!(node instanceof HTMLElement)) return;
 		if (check(node)) callback(node);
 		for (const child of node.childNodes) traverse(child);
 	}
 	return traverse;
 }
 
-function startObserver(root, get, check, callback, initialCheck=true) {
-	return new Promise((resolve, reject) => {
-		if (initialCheck) {
-			const e = get();
+const logCallbackNames = false;
 
-			if (e) {
-				if (callback.name) console.log(callback.name);
-				callback(e);
-				resolve(e);
-				return;
-			}
+// the only case in which the resolved value is the return value of attributeCallback is when
+// initialCheck is false and the element already exists in the tree
+// in which case the only way for any callback to trigger is for one of its attributes to change
+// in that case, attributeCallback will be called and its return value resolved
+
+// most of the times, just forget about attributeCallback
+// this function always resolves the return value of childCallback
+// really, attributeCallback is only ever used by startPObserver
+// and is expected to be used by this medium rather than directly
+function startObserver(root, get, givenCheck, childCallback, attributeCallback = null, initialCheck = true) {
+	function check(e) {
+		return e && e instanceof HTMLElement && givenCheck(e);
+	}
+	if (initialCheck) {
+		const e = get();
+		if (check(e)) {
+			if (logCallbackNames && childCallback?.name) console.log(childCallback?.name);
+			const r = childCallback?.(e);
+			if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
+			attributeCallback?.(e);
+			return r;
 		}
-
+	}
+	return new Promise((resolve, reject) => {
 		let observer;
 		
-		function maybeDone(e) {
-			if (e) {
-				if (callback.name) console.log(callback.name);
-				callback(e);
-				observer.disconnect();
-				resolve(e);
-			}
+		function done(e, callback) {
+			observer.disconnect();
+			if (logCallbackNames && callback?.name) console.log(callback?.name);
+			resolve(callback?.(e));
 		}
 		
-		const traverse = getTraverse(check, maybeDone);
+		const traverse = getTraverse(check, e => done(e, childCallback));
 
 		function onMutation(mutation) {
 			if (mutation.type === 'childList') {
 				for (const node of mutation.addedNodes) traverse(node);
 			} else if (mutation.type === 'attributes') {
-				if (mutation.target instanceof HTMLElement && check(mutation.target)) maybeDone(mutation.target);
+				if (check(mutation.target)) done(mutation.target, attributeCallback);
 			}
 		}
 
 		observer = new MutationObserver(mutationsList => mutationsList.forEach(onMutation));
 
-		observer.observe(root, { subtree: true, childList: true, attributes: true });
+		observer.observe(root, { subtree: true, childList: true, attributes: !!attributeCallback });
 	});
 }
 
@@ -249,16 +258,26 @@ function startObserver(root, get, check, callback, initialCheck=true) {
 // root is supposed to be a literaly root in which you trust the persistance of like document.body
 // it will get your element accordingly and call your callback whenever the element's reference has changed
 // whereas startObserver, once it finds your element, it's done and disconnects
-function startPObserver(root, get, check, callback) {
+
+// we separated the callback in two parts
+// both will be called whenever the reference of the element changes
+// only attributeCallback whenever its attributes have changed
+function startPObserver(root, get, check, childCallback, attributeCallback) {
 	let lastElement = null;
 
 	function observe(initialCheck) {
-		startObserver(root, get, check, element => {
-			if (element !== lastElement) {
-				lastElement = element;
-				if (callback.name) console.log(callback.name);
-				callback(element);
+		startObserver(root, get, check, e => {
+			if (e !== lastElement) {
+				lastElement = e;
+				if (logCallbackNames && childCallback?.name) console.log(childCallback?.name);
+				childCallback?.(e);
+				if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
+				attributeCallback?.(e);
 			}
+			setTimeout(() => observe(false), 0);
+		}, e => {
+			if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
+			attributeCallback?.(e);
 			setTimeout(() => observe(false), 0);
 		}, initialCheck);
 	}
@@ -268,8 +287,8 @@ function startPObserver(root, get, check, callback) {
 
 function getStartObserverFactory(so) {
 	return function (root) {
-		return function (get, check, callback) {
-			return so(root, get, check, callback);
+		return function (get, check, childCallback, attributeCallback = null) {
+			return so(root, get, check, childCallback, attributeCallback);
 		};
 	}
 }
@@ -279,11 +298,11 @@ const getStartPObserver = getStartObserverFactory(startPObserver);
 
 function getStartAttributeObserverFactory(so) {
 	return function (doc) {
-		return function (tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
+		return function (tagName, attributeName, attributeValue, childCallback, attributeCallback = null, selectorSuffix = '') {
 			return so(doc,
 				() => doc.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
 				e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
-				callback
+				childCallback, attributeCallback
 			);
 		};
 	}
@@ -293,18 +312,22 @@ const getStartAttributeObserver = getStartAttributeObserverFactory(startObserver
 const getStartAttributePObserver = getStartAttributeObserverFactory(startPObserver);
 
 function getNthChildFactory(so) {
-	return function (root, indices, callback) {
+	return function (root, indices, childCallback, attributeCallback = null) {
 		if (!Array.isArray(indices)) indices = [indices];
 		function help(currentRoot, remainingIndices) {
 			const index = remainingIndices[0];
 			function get() {
 				return currentRoot.children[index];
 			}
-			return remainingIndices.length === 1
-				? so(currentRoot, get, e => e === get(), callback)
-				: so(currentRoot, get, e => e === get(), child => help(child, remainingIndices.slice(1)));
+			return new Promise((resolve, reject) => {
+				if (remainingIndices.length === 1) {
+					resolve(so(currentRoot, get, e => e === get(), childCallback, attributeCallback));
+					return;
+				}
+				so(currentRoot, get, e => e === get(), child => resolve(help(child, remainingIndices.slice(1))));
+			});
 		}
-		help(root, indices);
+		return help(root, indices);
 	}
 }
 

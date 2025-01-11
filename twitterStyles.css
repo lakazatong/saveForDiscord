@@ -9,7 +9,7 @@
 	--overview-grid-columns: 8;
 	--overview-grid-rows: 4;
 
-	--overview-grid-gap: 2;
+	--overview-grid-gap: 20;
 
 	/* computed in JS from their respective --react-root-X and --overview-grid-X because CSS's calc cannot floor the result */
 	--overview-grid-media-width: 100%; /* floor(--react-root-width / --overview-grid-columns) */
@@ -19,6 +19,8 @@
 }
 
 #media-container {
+	position: relative;
+	display: inline-block;
 	overflow: hidden;
 }
 
@@ -32,7 +34,7 @@
 #overview-grid {
 	max-width: var(--react-root-width);
 	max-height: var(--react-root-height);
-/*	grid-gap: var(--overview-grid-gap);*/
+	grid-gap: var(--overview-grid-gap);
 	grid-template-columns: repeat(var(--overview-grid-columns), 1fr);
 	grid-template-rows: repeat(var(--overview-grid-rows), 1fr);
 }
@@ -58,8 +60,30 @@
 }
 
 .overview-grid-container.overview-highlighted {
-/*	max-width: var(--react-root-width);*/
-/*	max-height: var(--react-root-height);*/
 	z-index: 1;
-/*	border: 2px solid black;*/
+}
+
+.overview-video-play-icon {
+	width: 20%;
+	fill: white;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	border-radius: 50%;
+	background-color: rgba(0, 0, 0, 0.6);
+}
+
+.overview-media-counter {
+	position: absolute;
+	width: 25%;
+	height: auto;
+	bottom: 4%;
+	right: -4%;
+	color: white;
+}
+
+.overview-highlighted .overview-media-counter {
+	bottom: -10%;
+	right: -25%;
 }

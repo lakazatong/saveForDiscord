@@ -197,6 +197,13 @@ window.addEventListener('commonLoaded', () => {
 		overviewVisible = false;
 	}
 
+	function desactivateOverviewTweet(index) {
+		const container = getOverviewContainer(index);
+		container.classList.remove('overview-highlighted');
+		const elm = container.querySelector('video');
+		if (elm) addPlayIcon(container);
+	}
+
 	function activateOverviewTweet(index) {
 		const container = getOverviewContainer(index);
 		container.classList.add('overview-highlighted');
@@ -207,13 +214,6 @@ window.addEventListener('commonLoaded', () => {
 			elm.play();
 		}
 		overviewContainer = container;
-	}
-
-	function desactivateOverviewTweet(index) {
-		const container = getOverviewContainer(index);
-		container.classList.remove('overview-highlighted');
-		const elm = container.querySelector('video');
-		if (elm) addPlayIcon(container);
 	}
 
 	function getOverviewContainer(index) {
@@ -297,16 +297,8 @@ window.addEventListener('commonLoaded', () => {
 	function addPlayIcon(container) {
 		if (container.querySelector('svg')) return;
 		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		svg.setAttribute('width', '20%');
-		svg.setAttribute('padding-top', '20%');
 		svg.setAttribute('viewBox', '0 0 20 20');
-		svg.setAttribute('fill', 'white');
-		svg.style.position = 'absolute';
-		svg.style.top = '50%';
-		svg.style.left = '50%';
-		svg.style.transform = 'translate(-50%, -50%)';
-		svg.style.borderRadius = '50%';
-		svg.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+		svg.classList.add('overview-video-play-icon');
 		svg.innerHTML = `<polygon points="6,4 16,10 6,16" />`;
 		container.appendChild(svg);
 		return svg;
@@ -314,12 +306,7 @@ window.addEventListener('commonLoaded', () => {
 
 	function addCounter(container) {
 		const counter = document.createElement('span');
-		counter.setAttribute('width', '25%');
-		counter.setAttribute('height', 'auto');
-		counter.style.position = 'absolute';
-		counter.style.bottom = '5%';
-		counter.style.right = '7%';
-		counter.style.color = 'white';
+		counter.classList.add('overview-media-counter');
 		container.appendChild(counter);
 		return counter;
 	}
@@ -346,9 +333,8 @@ window.addEventListener('commonLoaded', () => {
 		} else {
 			elm = newVideoMediaElement();
 			elm.src = media.src;
-
+			elm.currentTime = media.currentTime;
 			if (isSelected) {
-				elm.currentTime = media.currentTime;
 				elm.play();
 			} else {
 				const playIcon = addPlayIcon(container);
@@ -707,15 +693,14 @@ window.addEventListener('commonLoaded', () => {
 					getNthChild(tweet, [0, 0, 0], softRemove);
 
 					tweet.setAttribute('data-testid', seenUUID);
-				})
-					.then(() => modifyTweets());
+
+					setTimeout(modifyTweets, 0);
+				});
 			}
 
 			modifyTweets();
 
 			if (document.location.href.endsWith('media')) {
-				timeline.style.minHeight = '0';
-
 				requestMoreTweets.define(function () {
 					// const now = Date.now();
 					// offset ??= now;
@@ -724,12 +709,14 @@ window.addEventListener('commonLoaded', () => {
 				});
 
 				function watchNewTweetsRows() {
+					// console.log('watchNewTweetsRows called');
 					startTimelineAttributeObserver('div', 'data-testid', 'cellInnerDiv', tweetRow => {
 						ensureEnoughTweets(Math.max(tweetIndex.value, overviewTweetIndex.value));
 
 						tweetRow.setAttribute('data-testid', seenUUID);
-					})
-						.then(() => watchNewTweetsRows());
+
+						setTimeout(watchNewTweetsRows, 0);
+					});
 				}
 
 				watchNewTweetsRows();
@@ -739,54 +726,54 @@ window.addEventListener('commonLoaded', () => {
 		function actualPrimaryColumnCallback(actualPrimaryColumn) {
 			getPNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
 				// profile banner
-				getPNthChild(topActualPrimaryColumn, 0, softRemove);
-				getPNthChild(topActualPrimaryColumn, 1, presentation => {
+				getPNthChild(topActualPrimaryColumn, 0, null, softRemove);
+				getPNthChild(topActualPrimaryColumn, 1, null, presentation => {
 					presentation.style.margin = presentation.style.padding = '0px';
 				});
 			});
 			// profile pp
-			getPNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
-			// hacky but it works
-			actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
-
-			function mediaSectionCallback(mediaSection) {
-				mediaSection.style.position = 'relative';
-				mediaSection.style.overflow = 'hidden';
-				getPNthChild(mediaSection, [1, 0], timelineCallback);
+			getPNthChild(actualPrimaryColumn, [0, 1, 0], null, softRemove);
+			function sectionCallback(section) {
+				getPNthChild(section, [1, 0], timelineCallback);
 				if (document.location.href.endsWith('media')) {
 					insertMediaSection.define(function () {
 						if (!actualPrimaryColumn.querySelector('div[id="media-container"]'))
-							actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
-					});
-					mediaContainer?.scrollIntoView({
-						behavior: 'auto',
-						block: 'start',
-						inline: 'start'
+							actualPrimaryColumn.insertBefore(setupNavigationSystem(), section);
 					});
 				}
 			}
-			getStartAttributePObserver(actualPrimaryColumn)('section', 'role', 'region', mediaSectionCallback);
+			getStartAttributePObserver(actualPrimaryColumn)('section', 'role', 'region', sectionCallback, section => {
+				if (document.location.href.endsWith('media')) {
+					section.style.visibility = 'hidden';
+					// section.style.pointerEvents = 'none';
+					// section.style.zIndex = '-1';
+				}
+			});
 		}
 
 		function homeTimelineCallback(homeTimeline) {
 			// sticky top back and follow button with tweeter profile's name and posts count
-			getPNthChild(homeTimeline, 0, softRemove);
-			getPNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback);
+			getPNthChild(homeTimeline, 0, null, softRemove);
+			getPNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback, actualPrimaryColumn => {
+				actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
+				actualPrimaryColumn.style.overflow = 'hidden';
+			});
 		}
 
 		function primaryColumnCallback(primaryColumn) {
-			primaryColumn.style.border = '0px';
 			getPNthChild(primaryColumn, 0, homeTimelineCallback);
 		}
 
 		const startBodyAttributePObserver = getStartAttributePObserver(document.body);
 		// left side column
-		startBodyAttributePObserver('header', 'role', 'banner', softRemove);
+		startBodyAttributePObserver('header', 'role', 'banner', null, softRemove);
 		// right side column
-		startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', softRemove);
+		startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', null, softRemove);
 		// self explainatory
-		startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', softRemove);
-		startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback);
+		startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', null, softRemove);
+		startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
+			primaryColumn.style.border = '0px';
+		});
 	}
 
 	init();
