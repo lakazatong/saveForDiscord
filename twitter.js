@@ -59,9 +59,9 @@ window.addEventListener('commonLoaded', () => {
 		const requiredTweets = (batchIndex + 1) * overviewGridSize;
 
 		if (tweets.length < requiredTweets) {
-			const now = Date.now();
-			offset ??= now;
-			console.log('requestMoreTweets called', now - offset);
+			// const now = Date.now();
+			// offset ??= now;
+			// console.log('requestMoreTweets called', now - offset);
 			requestMoreTweets.call();
 		}
 	}
@@ -630,7 +630,7 @@ window.addEventListener('commonLoaded', () => {
 	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
 
-	let recursiveObserversStarted = false;
+	let bodyRef;
 	function init() {
 		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
 
@@ -679,9 +679,9 @@ window.addEventListener('commonLoaded', () => {
 			function modifyTweets() {
 				// console.log('modifyTweets called');
 				startTimelineAttributeObserver('article', 'data-testid', 'tweet', tweet => {
-					observeNthChild(tweet, [0, 0, 1], tweetTopDiv => {
+					getNthChild(tweet, [0, 0, 1], tweetTopDiv => {
 						// delete tweets with no img
-						observeNthChild(tweetTopDiv, 1, tweetDiv => {
+						getNthChild(tweetTopDiv, 1, tweetDiv => {
 							if (tweetDiv.children.length === 3) {
 								let parent = tweet;
 								while (parent) {
@@ -698,105 +698,95 @@ window.addEventListener('commonLoaded', () => {
 							}
 						});
 						// where the pp is (for each tweet)
-						observeNthChild(tweetTopDiv, 0, softRemove);
+						getNthChild(tweetTopDiv, 0, softRemove);
 					});
 
 					tweet.style.padding = '0px';
 
 					// where pinned is (for each tweet)
-					observeNthChild(tweet, [0, 0, 0], softRemove);
+					getNthChild(tweet, [0, 0, 0], softRemove);
 
 					tweet.setAttribute('data-testid', seenUUID);
 				})
 					.then(() => modifyTweets());
 			}
 
-			if (!recursiveObserversStarted) modifyTweets();
+			modifyTweets();
 
 			if (document.location.href.endsWith('media')) {
-
 				timeline.style.minHeight = '0';
 
 				requestMoreTweets.define(function () {
-					const now = Date.now();
-					offset ??= now;
-					console.log('requestMoreTweets called fr', now - offset);
+					// const now = Date.now();
+					// offset ??= now;
+					// console.log('requestMoreTweets called fr', now - offset);
 					Array.from(timeline.children).forEach(softRemove);
 				});
 
 				function watchNewTweetsRows() {
-					console.log('watchNewTweetsRows');
 					startTimelineAttributeObserver('div', 'data-testid', 'cellInnerDiv', tweetRow => {
-						ensureEnoughTweets();
+						ensureEnoughTweets(Math.max(tweetIndex.value, overviewTweetIndex.value));
 
 						tweetRow.setAttribute('data-testid', seenUUID);
 					})
 						.then(() => watchNewTweetsRows());
 				}
 
-				if (!recursiveObserversStarted) watchNewTweetsRows();
+				watchNewTweetsRows();
 			}
-
-			recursiveObserversStarted = true;
 		}
 
 		function actualPrimaryColumnCallback(actualPrimaryColumn) {
-			observeNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
+			getPNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
 				// profile banner
-				observeNthChild(topActualPrimaryColumn, 0, softRemove);
-				observeNthChild(topActualPrimaryColumn, 1, presentation => {
+				getPNthChild(topActualPrimaryColumn, 0, softRemove);
+				getPNthChild(topActualPrimaryColumn, 1, presentation => {
 					presentation.style.margin = presentation.style.padding = '0px';
 				});
 			});
 			// profile pp
-			observeNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
+			getPNthChild(actualPrimaryColumn, [0, 1, 0], softRemove);
 			// hacky but it works
 			actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
 
 			function mediaSectionCallback(mediaSection) {
 				mediaSection.style.position = 'relative';
 				mediaSection.style.overflow = 'hidden';
-				observeNthChild(mediaSection, [1, 0], timelineCallback);
+				getPNthChild(mediaSection, [1, 0], timelineCallback);
 				if (document.location.href.endsWith('media')) {
 					insertMediaSection.define(function () {
 						if (!actualPrimaryColumn.querySelector('div[id="media-container"]'))
 							actualPrimaryColumn.insertBefore(setupNavigationSystem(), mediaSection);
 					});
+					mediaContainer?.scrollIntoView({
+						behavior: 'auto',
+						block: 'start',
+						inline: 'start'
+					});
 				}
-				mediaContainer.scrollIntoView({
-					behavior: 'auto',
-					block: 'start',
-					inline: 'start'
-				});
 			}
-			startObserver(actualPrimaryColumn,
-				() => actualPrimaryColumn.querySelector('section[role="region"]'),
-				e => e.tagName === 'SECTION' && e.getAttribute('role') === 'region',
-				mediaSectionCallback
-			);
+			getStartAttributePObserver(actualPrimaryColumn)('section', 'role', 'region', mediaSectionCallback);
 		}
 
 		function homeTimelineCallback(homeTimeline) {
 			// sticky top back and follow button with tweeter profile's name and posts count
-			observeNthChild(homeTimeline, 0, softRemove);
-			observeNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback);
+			getPNthChild(homeTimeline, 0, softRemove);
+			getPNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback);
 		}
 
 		function primaryColumnCallback(primaryColumn) {
 			primaryColumn.style.border = '0px';
-			observeNthChild(primaryColumn, 0, homeTimelineCallback);
+			getPNthChild(primaryColumn, 0, homeTimelineCallback);
 		}
 
-		observeElementChanges(document.body, debounce(body => {
-			const startBodyAttributeObserver = getStartAttributeObserver(body);
-			// left side column
-			startBodyAttributeObserver('header', 'role', 'banner', softRemove);
-			// right side column
-			startBodyAttributeObserver('div', 'data-testid', 'sidebarColumn', softRemove);
-			// self explainatory
-			startBodyAttributeObserver('div', 'data-testid', 'DMDrawer', softRemove);
-			startBodyAttributeObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback);
-		}, 100));
+		const startBodyAttributePObserver = getStartAttributePObserver(document.body);
+		// left side column
+		startBodyAttributePObserver('header', 'role', 'banner', softRemove);
+		// right side column
+		startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', softRemove);
+		// self explainatory
+		startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', softRemove);
+		startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback);
 	}
 
 	init();

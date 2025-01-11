@@ -203,20 +203,24 @@ function getTraverse(check, callback) {
 	return traverse;
 }
 
-function startObserver(root, get, check, callback) {
+function startObserver(root, get, check, callback, initialCheck=true) {
 	return new Promise((resolve, reject) => {
-		const e = get();
+		if (initialCheck) {
+			const e = get();
 
-		if (e) {
-			callback(e);
-			resolve(e);
-			return;
+			if (e) {
+				if (callback.name) console.log(callback.name);
+				callback(e);
+				resolve(e);
+				return;
+			}
 		}
 
 		let observer;
 		
 		function maybeDone(e) {
 			if (e) {
+				if (callback.name) console.log(callback.name);
 				callback(e);
 				observer.disconnect();
 				resolve(e);
@@ -225,122 +229,87 @@ function startObserver(root, get, check, callback) {
 		
 		const traverse = getTraverse(check, maybeDone);
 
-		observer = new MutationObserver((mutationsList) => {
-			for (const mutation of mutationsList) {
-				if (mutation.type === 'childList') {
-					for (const node of mutation.addedNodes) {
-						traverse(node);
-					}
-				// } else if (mutation.type === 'attributes' || mutation.type === 'characterData') {
-				} else if (mutation.type === 'attributes') {
-					if (mutation.target instanceof HTMLElement && check(mutation.target)) maybeDone(mutation.target);
-				} else {
-					console.log(`startObserver: impossible case reached (${mutation.type})`);
-				}
+		function onMutation(mutation) {
+			if (mutation.type === 'childList') {
+				for (const node of mutation.addedNodes) traverse(node);
+			} else if (mutation.type === 'attributes') {
+				if (mutation.target instanceof HTMLElement && check(mutation.target)) maybeDone(mutation.target);
 			}
-		});
+		}
+
+		observer = new MutationObserver(mutationsList => mutationsList.forEach(onMutation));
 
 		observer.observe(root, { subtree: true, childList: true, attributes: true });
 	});
 }
 
-function getStartObserver(root) {
-	return function (get, check, callback) {
-		return startObserver(root, get, check, callback);
-	};
-}
+// shortened Persistant to P
 
-function getStartAttributeObserver(doc) {
-	return function (tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
-		return startObserver(doc,
-			() => doc.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
-			e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
-			callback
-		);
-	};
-}
+// how this works:
+// root is supposed to be a literaly root in which you trust the persistance of like document.body
+// it will get your element accordingly and call your callback whenever the element's reference has changed
+// whereas startObserver, once it finds your element, it's done and disconnects
+function startPObserver(root, get, check, callback) {
+	let lastElement = null;
 
-function observeNthChild(root, indices, callback) {
-	if (!Array.isArray(indices)) indices = [indices];
-
-	const [currentIndex, ...remainingIndices] = indices;
-
-	function observeSingleLevel(parent, index, nextStep) {
-		let children = Array.from(parent.children);
-		let target = children[index];
-
-		if (target) {
-			nextStep(target);
-			return;
-		}
-
-		const observer = new MutationObserver(() => {
-			children = Array.from(parent.children);
-			target = children[index];
-			if (target) {
-				observer.disconnect();
-				nextStep(target);
+	function observe(initialCheck) {
+		startObserver(root, get, check, element => {
+			if (element !== lastElement) {
+				lastElement = element;
+				if (callback.name) console.log(callback.name);
+				callback(element);
 			}
-		});
-
-		observer.observe(parent, { childList: true, subtree: false });
+			setTimeout(() => observe(false), 0);
+		}, initialCheck);
 	}
 
-	function help(parent, remainingIndices) {
-		if (!parent || remainingIndices.length === 0) {
-			callback(parent);
-			return;
-		}
-
-		observeSingleLevel(parent, remainingIndices[0], nextParent => help(nextParent, remainingIndices.slice(1)));
-	}
-
-	help(root, indices);
+	observe(true);
 }
 
-function getNthChild(root, indices, callback) {
-	if (!Array.isArray(indices)) indices = [indices];
+function getStartObserverFactory(so) {
+	return function (root) {
+		return function (get, check, callback) {
+			return so(root, get, check, callback);
+		};
+	}
+}
 
-	const observers = [];
+const getStartObserver = getStartObserverFactory(startObserver);
+const getStartPObserver = getStartObserverFactory(startPObserver);
 
-	function observeSingleLevel(parent, index, nextStep) {
-		let children = Array.from(parent.children);
-		let target = children[index];
+function getStartAttributeObserverFactory(so) {
+	return function (doc) {
+		return function (tagName, attributeName, attributeValue, callback, selectorSuffix = '') {
+			return so(doc,
+				() => doc.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
+				e => e?.tagName === tagName.toUpperCase() && e?.getAttribute(attributeName) === attributeValue,
+				callback
+			);
+		};
+	}
+}
 
-		if (target) {
-			nextStep(target);
-			return;
-		}
+const getStartAttributeObserver = getStartAttributeObserverFactory(startObserver);
+const getStartAttributePObserver = getStartAttributeObserverFactory(startPObserver);
 
-		const observer = new MutationObserver(() => {
-			children = Array.from(parent.children);
-			target = children[index];
-			if (target) {
-				observer.disconnect();
-				nextStep(target);
+function getNthChildFactory(so) {
+	return function (root, indices, callback) {
+		if (!Array.isArray(indices)) indices = [indices];
+		function help(currentRoot, remainingIndices) {
+			const index = remainingIndices[0];
+			function get() {
+				return currentRoot.children[index];
 			}
-		});
-
-		observer.observe(parent, { childList: true, subtree: false });
-		observers.push(observer);
-	}
-
-	function help(parent, remainingIndices) {
-		if (!parent || remainingIndices.length === 0) {
-			disconnectObservers();
-			callback(parent);
-			return;
+			return remainingIndices.length === 1
+				? so(currentRoot, get, e => e === get(), callback)
+				: so(currentRoot, get, e => e === get(), child => help(child, remainingIndices.slice(1)));
 		}
-
-		observeSingleLevel(parent, remainingIndices[0], nextParent => help(nextParent, remainingIndices.slice(1)));
+		help(root, indices);
 	}
-
-	function disconnectObservers() {
-		observers.forEach(observer => observer.disconnect());
-	}
-
-	help(root, indices);
 }
+
+const getNthChild = getNthChildFactory(startObserver);
+const getPNthChild = getNthChildFactory(startPObserver);
 
 function observeElementChanges(element, callback) {
 	if (!element) return;
