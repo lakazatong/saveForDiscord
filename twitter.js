@@ -260,9 +260,9 @@ window.addEventListener('commonLoaded', () => {
 			container.querySelector('svg')?.remove();
 			elm.currentTime = currentMedia(index).currentTime;
 			elm.play();
-			adjustHighlightedPosition(container, elm);
+			// adjustHighlightedPosition(container, elm);
 		} else {
-			adjustHighlightedPosition(container, container.querySelector('img'));
+			// adjustHighlightedPosition(container, container.querySelector('img'));
 		}
 		setupView(overviewGrid);
 	}
@@ -395,7 +395,7 @@ window.addEventListener('commonLoaded', () => {
 			oldChildren.forEach(child => child.remove());
 			if (isSelected) {
 				container.classList.add('overview-highlighted');
-				adjustHighlightedPosition(container, elm);
+				// adjustHighlightedPosition(container, elm);
 			} else {
 				container.classList.remove('overview-highlighted');
 			}
@@ -480,27 +480,48 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function adjustHighlightedPosition(container, highlighted) {
-		const rect = highlighted.getBoundingClientRect();
-		const [w, h] = getReactRootDims();
-		
-		const left = rect.left;
-		const right = w - rect.right;
-		const top = rect.top;
-		const bottom = h - rect.bottom;
+	function adjustHighlightedPosition(container, mediaElm) {
+		const rect = container.getBoundingClientRect();
+		const w = mediaElm.naturalWidth;
+		const h = mediaElm.naturalHeight;
 
-		let translateX = 0;
-		let translateY = 0;
-		
-		if (left < 0) translateX = -left;
-		// if (top < 0) translateY = -top;
+		let newWidth = rect.width;
+		let newHeight = rect.height;
 
-		if (right < 0) translateX = right;
-		// if (bottom < 0) translateY = bottom;
+		let leftOffset = 0;
+		let topOffset = 0;
 
-		highlighted.style.transform = updateCSSProperty(getComputedStyle(highlighted).transform, 'translate', `${translateX}px, ${translateY}px`);
-		const span = container.querySelector('span');
-		if (span) span.style.transform = updateCSSProperty(getComputedStyle(span).transform, 'translate', `${translateX}px, ${translateY}px`);
+		if (w / h > rect.width / rect.height) {
+			newWidth = w / h * newHeight;
+			if (window.innerWidth < newWidth) {
+				newWidth = window.innerWidth;
+				newHeight = newWidth * (h / w);
+			}
+			const left = rect.left - (newWidth - rect.width) / 2;
+			if (left < 0) {
+				leftOffset = left;
+			} else {
+				const right = left + newWidth;
+				if (right > window.innerWidth) leftOffset = right - window.innerWidth;
+			}
+		} else if (h / w > rect.height / rect.width) {
+			newHeight = h / w * newWidth;
+			if (window.innerHeight < newHeight) {
+				newHeight = window.innerHeight;
+				newWidth = newHeight * (w / h);
+			}
+			const top = rect.top - (newHeight - rect.height) / 2;
+			if (top < 0) {
+				topOffset = top;
+			} else {
+				const bottom = top + newHeight;
+				if (bottom > window.innerHeight) topOffset = bottom - window.innerHeight;
+			}
+		}
+
+		mediaElm.style.width = `${newWidth}px`;
+		mediaElm.style.width = `${newHeight}px`;
+		mediaElm.style.transform = updateCSSProperty(getComputedStyle(mediaElm).transform, 'translate', `${-leftOffset}px, ${-topOffset}px`);
 	}
 
 	function handleOverviewKeydownEvent(e) {
@@ -647,6 +668,7 @@ window.addEventListener('commonLoaded', () => {
 
 		mediaContainer = document.createElement('div');
 		mediaContainer.id = 'media-container';
+		mediaContainer.classList.add('ignore');
 
 		setupMediaElement();
 
@@ -813,17 +835,22 @@ window.addEventListener('commonLoaded', () => {
 			getStartActualPrimaryColumnAttributePObserver('section', 'role', 'region', sectionCallback, section => {
 				if (document.location.href.endsWith('media')) {
 					section.style.visibility = 'hidden';
-					// section.style.pointerEvents = 'none';
-					// section.style.zIndex = '-1';
 				}
 			});
 		}
 
 		function homeTimelineCallback(homeTimeline) {
 			// sticky top back and follow button with tweeter profile's name and posts count
-			getPNthChild(homeTimeline, 0, null, softRemove);
+			// getPNthChild(homeTimeline, 0, null, softRemove);
 			getPNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback, actualPrimaryColumn => {
-				actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
+				// actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
+				
+					
+				makeTargetRoot(actualPrimaryColumn);
+				actualPrimaryColumn.style.display = 'flex';
+				actualPrimaryColumn.style.flexDirection = 'column';
+				actualPrimaryColumn.style.height = '100%';
+				actualPrimaryColumn.style.width = '100%';
 				actualPrimaryColumn.style.overflow = 'hidden';
 			});
 		}
@@ -834,14 +861,64 @@ window.addEventListener('commonLoaded', () => {
 
 		const startBodyAttributePObserver = getStartAttributePObserver(document.body);
 		// left side column
-		startBodyAttributePObserver('header', 'role', 'banner', null, softRemove);
+		// startBodyAttributePObserver('header', 'role', 'banner', null, softRemove);
 		// right side column
-		startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', null, softRemove);
+		// startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', null, softRemove);
 		// self explainatory
-		startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', null, softRemove);
-		startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
-			primaryColumn.style.border = '0px';
-		});
+		// startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', null, softRemove);
+		// startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
+			// primaryColumn.style.border = '0px';
+		// });
+		function hideAllBut(targetElement) {
+			const allElements = document.body.getElementsByTagName('*');
+			for (let element of allElements) {
+				if (!targetElement.contains(element) && element !== targetElement) element.style.display = 'none';
+			}
+		}
+		function ignoreStyles(e) {
+			e.style.display = 'contents';
+			e.style.position = 'absolute';
+			e.style.top = '0';
+			e.style.left = '0';
+			e.style.width = '0';
+			e.style.height = '0';
+			e.style.margin = '0';
+			e.style.padding = '0';
+			e.style.border = 'none';
+			e.style.visibility = 'visible';
+			e.style.pointerEvents = 'none';
+		}
+		function rootStyles(e) {
+			e.style.position = 'absolute';
+			e.style.display = 'flex';
+			e.style.flexDirection = 'column';
+			e.style.height = '100vh';
+			e.style.width = '100vw';
+			e.style.overflow = 'hidden';
+		}
+		startBodyAttributePObserver('div', 'id', 'react-root', e => {
+			getPNthChild(e, [0, 0, 2], e => {
+				// getStartAttributePObserver(e)('main', 'role', 'main', e => {
+				// getPNthChild(e, 0, e => {
+				// getPNthChild(e, 0, e => {
+				// getPNthChild(e, 0, e => {
+				// getStartAttributePObserver(e)('div', 'data-testid', 'primaryColumn', e => {
+				// getStartAttributePObserver(e)('div', 'aria-label', 'Home timeline', e => {
+				// getPNthChild(e, 2, e => {
+				// getPNthChild(e, 0, e => {
+				// getPNthChild(e, 0, e => {
+				// 	hideAllBut(e);
+				// }, rootStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+				// }, ignoreStyles);
+			}, ignoreStyles, ignoreStyles);
+		}, ignoreStyles);
 	}
 
 	init();
