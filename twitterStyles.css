@@ -18,15 +18,13 @@
 }
 
 #media-container {
-	position: relative;
-	display: inline-block;
 	overflow: hidden;
 }
 
-#media-element {
+#img-element, #video-element {
+	position: absolute;
 	max-width: var(--react-root-width);
 	max-height: var(--react-root-height);
-	display: block;
 	object-fit: contain;
 }
 
@@ -54,7 +52,7 @@
 
 .overview-grid-container.overview-highlighted .overview-grid-media {
 	transform: scale(var(--overview-highlighted-scale));
-	image-rendering: crisp-edges;
+	image-rendering: pixelated;
 	overflow: visible;
 }
 

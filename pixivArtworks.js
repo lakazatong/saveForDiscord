@@ -23,7 +23,7 @@ window.addEventListener('commonLoaded', () => {
 	function buttonsMouseOver(b) {
 		return () => {
 			b.style.opacity = '0.9';
-			setFilter(b.style.filter, 'saturate', '0.87');
+			updateCSSProperty(b.style.filter, 'saturate', '0.87');
 			b.style.textShadow = `0 0 10px var(--charcoal-brand), 0 0 20px var(--charcoal-brand)`;
 		};
 	};
@@ -31,7 +31,7 @@ window.addEventListener('commonLoaded', () => {
 	function buttonsMouseOut(b) {
 		return () => {
 			b.style.opacity = '0.5';
-			setFilter(b.style.filter, 'saturate', '1');
+			updateCSSProperty(b.style.filter, 'saturate', '1');
 			b.style.textShadow = `0 0 5px var(--charcoal-brand), 0 0 10px var(--charcoal-brand)`;
 		};
 	};
@@ -136,15 +136,15 @@ window.addEventListener('commonLoaded', () => {
 					button.addEventListener('click', () => {
 						if (button.userData.enabled) {
 							button.userData.enabled = false;
-							button.style.filter = setFilter(button.style.filter, 'hue-rotate', '0deg');
+							button.style.filter = updateCSSProperty(button.style.filter, 'hue-rotate', '0deg');
 							enabledButtons[i] = null;
 						} else {
 							buttons[i].slice(1).forEach(b => {
 								b.userData.enabled = false;
-								b.style.filter = setFilter(b.style.filter, 'hue-rotate', '0deg');
+								b.style.filter = updateCSSProperty(b.style.filter, 'hue-rotate', '0deg');
 							});
 							button.userData.enabled = true;
-							button.style.filter = setFilter(button.style.filter, 'hue-rotate', '90deg');
+							button.style.filter = updateCSSProperty(button.style.filter, 'hue-rotate', '90deg');
 							enabledButtons[i] = button;
 							enabledButtons[i].userData.imgUrl = anchor.href;
 							addStickyButton();

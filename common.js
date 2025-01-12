@@ -168,13 +168,13 @@ function persistentSoftRemove(element) {
 	observeElementChanges(element, softRemove);
 }
 
-function setFilter(currentFilter, filterType, value) {
-	currentFilter = currentFilter || '';
-	const regex = new RegExp(`${filterType}\\([^)]*\\)`, 'g');
-	if (regex.test(currentFilter)) {
-		return currentFilter.replace(regex, `${filterType}(${value})`);
+function updateCSSProperty(currentProperty, key, value) {
+	currentProperty = currentProperty || '';
+	const regex = new RegExp(`${key}\\([^)]*\\)`, 'g');
+	if (regex.test(currentProperty)) {
+		return currentProperty.replace(regex, `${key}(${value})`);
 	} else {
-		return currentFilter ? `${currentFilter} ${filterType}(${value})` : `${filterType}(${value})`;
+		return currentProperty ? `${currentProperty} ${key}(${value})` : `${key}(${value})`;
 	}
 }
 
