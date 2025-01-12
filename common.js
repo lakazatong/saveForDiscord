@@ -231,47 +231,64 @@ window.logCallbackNames ??= false;
 // this function always resolves the return value of childCallback
 // really, attributeCallback is only ever used by startPObserver
 // and is expected to be used by this medium rather than directly
-function startObserver(root, get, givenCheck, childCallback, attributeCallback = null, initialCheck = true) {
-	return new Promise(async (resolve, reject) => {
+function startObserver(root, get, givenCheck, childCallback, attributeCallback, initialCheck) {
+	return new Promise((resolve, reject) => { (async () => {
 		function check(e) {
 			return e && e instanceof HTMLElement && givenCheck(e);
 		}
-		if (initialCheck) {
-			let found = false;
-			const results = [];
-			for (const e of (await get())) {
-				if (!check(e)) continue;
-				if (logCallbackNames && childCallback?.name) console.log(childCallback?.name);
-				results.push(childCallback(e));
-				if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
-				attributeCallback?.(e);
-				found = true;
+
+		const promises = [];
+		const results = [];
+
+		function found(e) {
+			if (logCallbackNames && childCallback?.name) console.log(childCallback?.name);
+			const r = childCallback(e);
+			promises.push(r);
+			results.push(r);
+			if (attributeCallback) {
+				if (logCallbackNames && attributeCallback.name) console.log(attributeCallback.name);
+				promises.push(attributeCallback(e));
 			}
-			if (found) return results;
+		}
+
+		async function resolveIfDone() {
+			if (promises.length > 0) {
+				await Promise.all(promises);
+				resolve(results);
+			}
+		}
+
+		if (initialCheck) {
+			(await get()).forEach(e => {
+				if (check(e)) found(e);
+			});
+			await resolveIfDone();
 		}
 
 		let observer;
 
-		function done(e, callback) {
-			observer.disconnect();
-			if (logCallbackNames && callback?.name) console.log(callback?.name);
-			resolve([callback?.(e)]);
+		function done(e) {
+			observer?.disconnect();
+			observer = null;
+			found(e);
 		}
 
-		const traverse = getTraverse(check, e => done(e, childCallback));
+		const traverse = getTraverse(check, done);
 
-		function onMutation(mutation) {
-			if (mutation.type === 'childList') {
-				for (const node of mutation.addedNodes) traverse(node);
-			} else if (mutation.type === 'attributes') {
-				if (check(mutation.target)) done(mutation.target, attributeCallback);
+		observer = new MutationObserver(async mutationsList => {
+			for (const mutation of mutationsList) {
+				if (mutation.type === 'childList') {
+					for (const node of mutation.addedNodes) traverse(node);
+					await resolveIfDone();
+				} else if (mutation.type === 'attributes' && check(mutation.target)) {
+					done(mutation.target);
+					await resolveIfDone();
+				}
 			}
-		}
-
-		observer = new MutationObserver(mutationsList => mutationsList.forEach(onMutation));
+		});
 
 		observer.observe(root, { subtree: true, childList: true, attributes: !!attributeCallback });
-	});
+	})()});
 }
 
 // shortened Persistant to P
@@ -284,24 +301,27 @@ function startObserver(root, get, givenCheck, childCallback, attributeCallback =
 // we separated the callback in two parts
 // both will be called whenever the reference of the element changes
 // only attributeCallback whenever its attributes have changed
-function startPObserver(root, get, check, childCallback, attributeCallback) {
+function startPObserver(root, get, check, childCallback, attributeCallback, thisBetterBeTrue) {
 	const observedElements = new Set();
 	let clearingPromise = Promise.resolve();
 
 	async function observe(initialCheck) {
 		const r = await startObserver(root, get, check, async e => {
 			await clearingPromise;
+			let r;
 			if (!observedElements.has(e)) {
 				observedElements.add(e);
 				if (logCallbackNames && childCallback?.name) console.log(childCallback?.name);
-				childCallback?.(e);
+				r = childCallback?.(e);
 				if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
 				attributeCallback?.(e);
 			}
+			return r;
 		}, e => {
 			if (logCallbackNames && attributeCallback?.name) console.log(attributeCallback?.name);
-			attributeCallback?.(e);
+			return attributeCallback?.(e);
 		}, initialCheck);
+		// if (childCallback.name === 'dirThing') console.log(observedElements, root, get, check);
 		setTimeout(() => observe(false), 0);
 	}
 
@@ -315,13 +335,13 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 		});
 	}, 5000);
 
-	observe(true);
+	observe(thisBetterBeTrue);
 }
 
 function getStartObserverFactory(so) {
 	return function (root) {
 		return function (get, check, childCallback, attributeCallback = null) {
-			return so(root, get, check, childCallback, attributeCallback);
+			return so(root, get, check, childCallback, attributeCallback, true);
 		};
 	}
 }
@@ -335,7 +355,7 @@ function getStartAttributeObserverFactory(so) {
 			return so(doc,
 				() => doc.querySelectorAll(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
 				e => e.tagName === tagName.toUpperCase() && e.getAttribute(attributeName) === attributeValue,
-				childCallback, attributeCallback
+				childCallback, attributeCallback, true
 			);
 		};
 	}
@@ -354,13 +374,14 @@ function getNthChildFactory(so) {
 			}
 			return new Promise((resolve, reject) => {
 				if (remainingIndices.length === 1) {
-					resolve(so(currentRoot, get, e => e === get()[0], childCallback, attributeCallback)?.[0]);
+					// console.log(currentRoot, index, childCallback.name);
+					resolve(so(currentRoot, get, e => e === get()[0], childCallback, attributeCallback, true)?.[0]);
 					return;
 				}
 				so(currentRoot, get, e => e === get()[0], child => {
 					intermediateCallback?.(child);
 					resolve(help(child, remainingIndices.slice(1)));
-				});
+				}, null, true);
 			});
 		}
 		return help(root, indices);

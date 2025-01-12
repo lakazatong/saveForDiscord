@@ -896,27 +896,32 @@ window.addEventListener('commonLoaded', () => {
 			e.style.width = '100vw';
 			e.style.overflow = 'hidden';
 		}
-		startBodyAttributePObserver('div', 'id', 'react-root', e => {
-			getPNthChild(e, [0, 0, 2], e => {
-				// getStartAttributePObserver(e)('main', 'role', 'main', e => {
-				// getPNthChild(e, 0, e => {
-				// getPNthChild(e, 0, e => {
-				// getPNthChild(e, 0, e => {
-				// getStartAttributePObserver(e)('div', 'data-testid', 'primaryColumn', e => {
-				// getStartAttributePObserver(e)('div', 'aria-label', 'Home timeline', e => {
-				// getPNthChild(e, 2, e => {
-				// getPNthChild(e, 0, e => {
-				// getPNthChild(e, 0, e => {
-				// 	hideAllBut(e);
-				// }, rootStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
-				// }, ignoreStyles);
+		startBodyAttributePObserver('div', 'id', 'react-root', function reactRoot(rr) {
+			console.log('1 called');
+			getPNthChild(rr, [0, 0, 2], function dirThing(dt) {
+				console.log('2 called');
+				// console.log(e);
+				getStartAttributePObserver(dt)('main', 'role', 'main', function main(m) {
+					console.log('3 called');
+					// console.log(e);
+					// getPNthChild(e, 0, e => {
+					// getPNthChild(e, 0, e => {
+					// getPNthChild(e, 0, e => {
+					// getStartAttributePObserver(e)('div', 'data-testid', 'primaryColumn', e => {
+					// getStartAttributePObserver(e)('div', 'aria-label', 'Home timeline', e => {
+					// getPNthChild(e, 2, e => {
+					// getPNthChild(e, 0, e => {
+					// getPNthChild(e, 0, e => {
+					// 	hideAllBut(e);
+					// }, rootStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+					// }, ignoreStyles);
+				}, ignoreStyles);
 			}, ignoreStyles, ignoreStyles);
 		}, ignoreStyles);
 	}
