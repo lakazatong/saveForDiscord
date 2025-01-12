@@ -11,6 +11,15 @@ window.addEventListener('commonLoaded', () => {
 
 	let insertMediaSection = new DeferredFunction();
 	let requestMoreTweets = new DeferredFunction();
+	const pending = {
+		_promise: trackPromise(Promise.resolve()),
+		get promise() {
+			return this._promise;
+		},
+		set promise(newPromise) {
+			this._promise = trackPromise(newPromise);
+		}
+	};
 
 	let mediaContainer;
 	let mediaElement;
@@ -161,9 +170,7 @@ window.addEventListener('commonLoaded', () => {
 		});
 	}
 
-	let updateMediaElementPromise;
 	async function updateMediaElement() {
-		await updateMediaElementPromise;
 		return new Promise(resolve => {
 			const media = currentMedia(tweetIndex.value);
 			if (!media) return;
@@ -175,22 +182,21 @@ window.addEventListener('commonLoaded', () => {
 				videoElement.style.zIndex = 1;
 				whenReady(imgElement, () => {
 					videoElement.style.visibility = 'hidden';
+					setupView(imgElement);
 					resolve();
 				});
-				setupView(imgElement);
 				mediaElement = imgElement;
 			} else {
 				videoElement.style.removeProperty('visibility');
 				videoElement.src = media.src;
 				videoElement.currentTime = media.currentTime;
-				videoElement.play();
 				videoElement.style.zIndex = 2;
 				imgElement.style.zIndex = 1;
 				whenReady(videoElement, () => {
 					imgElement.style.visibility = 'hidden';
+					setupView(videoElement);
 					resolve();
 				});
-				setupView(videoElement);
 				mediaElement = videoElement;
 			}
 
@@ -215,7 +221,7 @@ window.addEventListener('commonLoaded', () => {
 
 		overviewTweetIndex.value = index;
 		overviewTweetIndex.batchIndex = getBatchIndex(index);
-		renderOverview();
+		pending.promise = renderOverview();
 
 		overviewVisible = true;
 	}
@@ -226,7 +232,7 @@ window.addEventListener('commonLoaded', () => {
 		mediaElement.style.removeProperty('display');
 
 		tweetIndex.value = index;
-		updateMediaElementPromise = updateMediaElement();
+		pending.promise = updateMediaElement();
 
 		overviewVisible = false;
 	}
@@ -241,21 +247,24 @@ window.addEventListener('commonLoaded', () => {
 			elm = container.querySelector('img');
 		}
 		elm.style.transform = '';
+		const span = container.querySelector('span');
+		if (span) span.style.transform = '';
 	}
 
 	function activateOverviewTweet(index) {
 		const container = getOverviewContainer(index);
+		overviewContainer = container;
 		container.classList.add('overview-highlighted');
 		const elm = container.querySelector('video');
 		if (elm) {
-			container.querySelector('svg').remove();
+			container.querySelector('svg')?.remove();
 			elm.currentTime = currentMedia(index).currentTime;
 			elm.play();
-			adjustHighlightedPosition(elm);
+			adjustHighlightedPosition(container, elm);
 		} else {
-			adjustHighlightedPosition(container.querySelector('img'));
+			adjustHighlightedPosition(container, container.querySelector('img'));
 		}
-		overviewContainer = container;
+		setupView(overviewGrid);
 	}
 
 	function getOverviewContainer(index) {
@@ -273,13 +282,13 @@ window.addEventListener('commonLoaded', () => {
 			const oldIndex = this.value;
 			this.value = newIndex;
 			beforeMediaChange(mediaElement, oldIndex);
-			updateMediaElementPromise = updateMediaElement();
+			pending.promise = updateMediaElement();
 		},
 		left() {
-			if (mediaIndex.decrement(this.value, () => beforeMediaChange(mediaElement, this.value))) updateMediaElementPromise = updateMediaElement();
+			if (mediaIndex.decrement(this.value, () => beforeMediaChange(mediaElement, this.value))) pending.promise = updateMediaElement();
 		},
 		right() {
-			if (mediaIndex.increment(this.value, () => beforeMediaChange(mediaElement, this.value))) updateMediaElementPromise = updateMediaElement();
+			if (mediaIndex.increment(this.value, () => beforeMediaChange(mediaElement, this.value))) pending.promise = updateMediaElement();
 		},
 		up() {
 			if (this.value > 0) this.set(this.value - 1);
@@ -303,7 +312,7 @@ window.addEventListener('commonLoaded', () => {
 
 			if (newBatchIndex !== this.batchIndex) {
 				this.batchIndex = newBatchIndex;
-				renderOverview();
+				pending.promise = renderOverview();
 			} else {
 				desactivateOverviewTweet(oldIndex);
 				activateOverviewTweet(this.value);
@@ -337,7 +346,6 @@ window.addEventListener('commonLoaded', () => {
 	};
 
 	function addPlayIcon(container) {
-		if (container.querySelector('svg')) return;
 		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		svg.setAttribute('viewBox', '0 0 20 20');
 		svg.classList.add('overview-video-play-icon');
@@ -353,56 +361,50 @@ window.addEventListener('commonLoaded', () => {
 		return counter;
 	}
 
-	function setupOverviewMediaElement(index, mark = false) {
+	function setupOverviewMediaElement(index) {
 		const container = getOverviewContainer(index);
+		const isSelected = index === overviewTweetIndex.value;
+		if (isSelected) overviewContainer = container;
 		const tweet = tweets[index];
 		const medias = tweet.medias;
 		const media = medias[tweet.cur];
-		const uuid = mark ? generateUUID() : undefined;
-		const isSelected = index === overviewTweetIndex.value;
 
-		let elm;
+		const oldChildren = [...Array.from(container.children)];
+
+		let e;
 		if (media.type === 'photo') {
-			elm = document.createElement('img');
-			elm.src = media.src;
+			e = document.createElement('img');
+			e.src = media.src;
 		} else {
-			elm = newVideoMediaElement(false);
-			elm.src = media.src;
-			elm.currentTime = media.currentTime;
+			e = newVideoMediaElement(false, false);
+			e.src = media.src;
+			e.currentTime = media.currentTime;
 			if (isSelected) {
-				elm.play();
+				e.play();
 			} else {
-				const playIcon = addPlayIcon(container);
-				if (mark) playIcon.setAttribute('data-uuid', uuid);
+				addPlayIcon(container);
 			}
 		}
 
+		const elm = e;
 		elm.classList.add('overview-grid-media');
-		if (mark) elm.setAttribute('data-uuid', uuid);
-		container.appendChild(elm);
-
-		if (isSelected) {
-			container.classList.add('overview-highlighted');
-			overviewContainer = container;
-			adjustHighlightedPosition(elm);
-		} else {
-			container.classList.remove('overview-highlighted');
-		}
-
-		if (medias.length <= 1) return uuid;
-
-		return new Promise((resolve) => elm.addEventListener(media.type === 'photo' ? 'load' : 'canplaythrough',
-			() => {
-				const counter = addCounter(container);
-				counter.textContent = `${tweet.cur + 1}/${medias.length}`;
-				if (mark) counter.setAttribute('data-uuid', uuid);
-				resolve(uuid);
-			},
-			{ once: true }
-		));
+		
+		return new Promise(resolve => whenReady(elm, () => {
+			container.appendChild(elm);
+			if (medias.length > 1) addCounter(container).textContent = `${tweet.cur + 1}/${medias.length}`;
+			oldChildren.forEach(child => child.remove());
+			if (isSelected) {
+				container.classList.add('overview-highlighted');
+				adjustHighlightedPosition(container, elm);
+			} else {
+				container.classList.remove('overview-highlighted');
+			}
+			resolve();
+		}));
 	}
 
-	function renderOverview() {
+	async function renderOverview() {
+		const promises = [];
 		const start = overviewTweetIndex.batchIndex * overviewGridSize;
 		const end = Math.min(start + overviewGridSize, tweetsCount);
 		let i = start;
@@ -411,17 +413,16 @@ window.addEventListener('commonLoaded', () => {
 			const localIndex = index % overviewGridSize;
 			if (newTweetsSubscribers.get(localIndex)) newTweetsSubscribers.delete(localIndex);
 			const container = overviewGrid.children[localIndex];
-			container.innerHTML = '';
-			if (tweets?.[index]) {
-				setupOverviewMediaElement(index);
-				continue;
-			}
-			newTweetsSubscribers.set(localIndex, function (newTweet) {
-				if (tweets?.[index]) {
-					newTweetsSubscribers.delete(localIndex);
-					setupOverviewMediaElement(index);
-				}
-			});
+			promises.push(tweets?.[index]
+				? setupOverviewMediaElement(index)
+				: new Promise(resolve => newTweetsSubscribers.set(localIndex, async function (newTweet) {
+					if (tweets?.[index]) {
+						newTweetsSubscribers.delete(localIndex);
+						await setupOverviewMediaElement(index);
+						resolve();
+					}
+				}))
+			);
 		}
 		i %= overviewGridSize;
 		if (i > 0) {
@@ -433,20 +434,7 @@ window.addEventListener('commonLoaded', () => {
 		}
 		// const firstOverviewContainer = overviewGrid.children[0];
 		setupView(overviewGrid);
-	}
-
-	let updateOverviewMediaPromise = Promise.resolve();
-	async function updateOverviewMedia() {
-		await updateOverviewMediaPromise;
-		const uuid = await setupOverviewMediaElement(overviewTweetIndex.value, true);
-
-		Array.from(overviewContainer.querySelectorAll(`:scope > *`)).forEach((child) => {
-			if (child.getAttribute('data-uuid') === uuid) {
-				child.removeAttribute('data-uuid');
-			} else {
-				overviewContainer.removeChild(child);
-			}
-		});
+		return Promise.all(promises);
 	}
 
 	// function highlightChannel(index) {
@@ -492,6 +480,29 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
+	function adjustHighlightedPosition(container, highlighted) {
+		const rect = highlighted.getBoundingClientRect();
+		const [w, h] = getReactRootDims();
+		
+		const left = rect.left;
+		const right = w - rect.right;
+		const top = rect.top;
+		const bottom = h - rect.bottom;
+
+		let translateX = 0;
+		let translateY = 0;
+		
+		if (left < 0) translateX = -left;
+		// if (top < 0) translateY = -top;
+
+		if (right < 0) translateX = right;
+		// if (bottom < 0) translateY = bottom;
+
+		highlighted.style.transform = updateCSSProperty(getComputedStyle(highlighted).transform, 'translate', `${translateX}px, ${translateY}px`);
+		const span = container.querySelector('span');
+		if (span) span.style.transform = updateCSSProperty(getComputedStyle(span).transform, 'translate', `${translateX}px, ${translateY}px`);
+	}
+
 	function handleOverviewKeydownEvent(e) {
 		// console.log(e.code);
 
@@ -510,8 +521,7 @@ window.addEventListener('commonLoaded', () => {
 				break;
 			case 'ArrowRight':
 				if (e.shiftKey) {
-					if (mediaIndex.increment(index, help)) updateOverviewMediaPromise = updateOverviewMedia();
-					updateOverviewMediaPromise = updateOverviewMedia();
+					if (mediaIndex.increment(index, help)) pending.promise = setupOverviewMediaElement(overviewTweetIndex.value, true);
 				} else {
 					overviewTweetIndex.right();
 				}
@@ -519,7 +529,7 @@ window.addEventListener('commonLoaded', () => {
 				break;
 			case 'ArrowLeft':
 				if (e.shiftKey) {
-					if (mediaIndex.decrement(index, help)) updateOverviewMediaPromise = updateOverviewMedia();
+					if (mediaIndex.decrement(index, help)) pending.promise = setupOverviewMediaElement(overviewTweetIndex.value, true);
 				} else {
 					overviewTweetIndex.left();
 				}
@@ -537,33 +547,13 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function adjustHighlightedPosition(highlighted) {
-		const rect = highlighted.getBoundingClientRect();
-		const style = getComputedStyle(highlighted);
-		const [w, h] = getReactRootDims();
-		
-		const left = rect.left;
-		const right = w - rect.right;
-		const top = rect.top;
-		const bottom = h - rect.bottom;
-
-		console.clear()
-		console.log(w, h);
-		console.log(left, right, top, bottom);
-		
-		let translateX = 0;
-		let translateY = 0;
-		
-		if (left < 0) translateX = -left;
-		if (top < 0) translateY = -top - 7;
-
-		if (right < 0) translateX = right;
-		if (bottom < 0) translateY = bottom + 9;
-
-		highlighted.style.transform = updateCSSProperty(style.transform, 'translate', `${translateX}px, ${translateY}px`);
-	}
-
 	async function handleKeydownEvent(e) {
+		// drop if some media is loading
+		if (pending.promise.getState() === 'pending') {
+			e.preventDefault();
+			return;
+		}
+
 		// console.log(e.code);
 
 		if (document.fullscreenElement) {
@@ -616,10 +606,11 @@ window.addEventListener('commonLoaded', () => {
 		}
 	}
 
-	function newVideoMediaElement(withControls) {
+	function newVideoMediaElement(controls, autoplay) {
 		const r = document.createElement('video');
-		r.controls = withControls;
 		r.loop = true;
+		r.controls = controls;
+		r.autoplay = autoplay;
 		return r;
 	}
 
@@ -628,14 +619,14 @@ window.addEventListener('commonLoaded', () => {
 		imgElement.id = 'img-element';
 		imgElement.setAttribute('tabindex', '0');
 		
-		videoElement = newVideoMediaElement(true);
+		videoElement = newVideoMediaElement(true, true);
 		videoElement.id = 'video-element';
 		videoElement.setAttribute('tabindex', '0');
 
 		mediaContainer.appendChild(imgElement);
 		mediaContainer.appendChild(videoElement);
 		
-		updateMediaElementPromise = updateMediaElement();
+		pending.promise = updateMediaElement();
 	}
 
 	function setupOverviewGrid(root) {
@@ -813,7 +804,13 @@ window.addEventListener('commonLoaded', () => {
 					});
 				}
 			}
-			getStartAttributePObserver(actualPrimaryColumn)('section', 'role', 'region', sectionCallback, section => {
+			const getStartActualPrimaryColumnAttributePObserver = getStartAttributePObserver(actualPrimaryColumn);
+			getStartActualPrimaryColumnAttributePObserver('nav', 'role', 'navigation', null, navbar => {
+				if (document.location.href.endsWith('media')) {
+					navbar.style.zIndex = '0';
+				}
+			});
+			getStartActualPrimaryColumnAttributePObserver('section', 'role', 'region', sectionCallback, section => {
 				if (document.location.href.endsWith('media')) {
 					section.style.visibility = 'hidden';
 					// section.style.pointerEvents = 'none';

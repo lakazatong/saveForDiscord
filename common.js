@@ -134,6 +134,24 @@ if (!window.DeferredFunction) {
 	window.DeferredFunction = DeferredFunction;
 }
 
+function trackPromise(promise) {
+	let state = 'pending';
+
+	const wrappedPromise = promise
+		.then(value => {
+			state = 'resolved';
+			return value;
+		})
+		.catch(err => {
+			state = 'rejected';
+			throw err;
+		});
+
+	wrappedPromise.getState = () => state;
+
+	return wrappedPromise;
+}
+
 function debounce(fn, delay) {
 	let timer;
 	return (...args) => {
