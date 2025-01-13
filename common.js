@@ -339,7 +339,7 @@ function getPNthChild(root, indices,
 	childCallback, attributeCallback,
 	intermediateChildCallback = null, intermediateAttributeCallback = null) {
 	if (!Array.isArray(indices)) indices = [indices];
-	function help(currentRoot, remainingIndices) {
+	function help(currentRoot, remainingIndices, currentLevel = 0) {
 		const index = remainingIndices[0];
 		const get = () => currentRoot.children[index];
 		const check = e => e === get();
@@ -347,9 +347,9 @@ function getPNthChild(root, indices,
 			startPObserver(currentRoot, get, check, childCallback, attributeCallback);
 		} else {
 			startPObserver(currentRoot, get, check, async child => {
-				intermediateChildCallback?.(child);
-				setTimeout(() => help(child, remainingIndices.slice(1)));
-			}, intermediateAttributeCallback);
+				intermediateChildCallback?.(child, currentLevel);
+				setTimeout(() => help(child, remainingIndices.slice(1), currentLevel + 1));
+			}, e => intermediateAttributeCallback?.(e, currentLevel));
 		}
 	}
 	help(root, indices);

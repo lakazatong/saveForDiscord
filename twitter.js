@@ -918,9 +918,23 @@ window.addEventListener('commonLoaded', () => {
 			}, mainParent => {
 				console.log('attributes of mainParent changed');
 			}, intermediate => {
-				console.log('new intermediate', intermediate);
+				switch (i) {
+				case 0:
+					console.log('first intermediate', intermediate);
+				case 1:
+					console.log('second intermediate', intermediate);
+				default:
+					console.log('impossible case');
+				}
 			}, intermediate => {
-				console.log('attributes of intermediate changed', intermediate);
+				switch (i) {
+				case 0:
+					console.log('attributes of first intermediate have changed', intermediate);
+				case 1:
+					console.log('attributes of second intermediate have changede', intermediate);
+				default:
+					console.log('impossible case');
+				}
 			});
 		});
 		// startObserver(document.body,
