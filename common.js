@@ -253,30 +253,45 @@ function startObserver(root, get, givenCheck, callback, initialCheck) {
 						return resolve(await callback(firstMatch));
 					}
 				}
+				if (initialCheck) {
+					initialCheck = false;
+					setTimeout(async () => {
+						if (typeof get !== "function") throw new Error("Invalid get function");
+						let e = await get();
+						if (!e) {
+							e = Array.from(document.querySelectorAll('*')).find(node => check(node));
+							if (e) {
+								console.log('Found element by checking the entire DOM:', e);
+							} else {
+								console.log('No matching element found in the entire DOM.');
+							}
+						}
+						if (!check(e)) return;
+						if (observer) {
+							observer.disconnect();
+							observer = null;
+						}
+						if (!resolved) {
+							resolved = true;
+							return resolve(await callback(e));
+						}
+					}, 0);
+				}
 			});
 
 			observer.observe(root, { subtree: true, childList: true });
-
-			if (initialCheck) {
-				setTimeout(async () => {
-					if (typeof get !== "function") throw new Error("Invalid get function");
-					const e = await get();
-					if (!check(e)) return;
-					if (observer) {
-						observer.disconnect();
-						observer = null;
-					}
-					if (!resolved) {
-						resolved = true;
-						return resolve(await callback(e));
-					}
-				}, 0);
-			}
 		} catch (error) {
 			reject(error);
 		}
 	});
 }
+
+function serializeAttributes(e) {
+	return Array.from(e.attributes)
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.map(attr => `${attr.name}${attr.value}`)
+		.join('');
+};
 
 function startPObserver(root, get, check, childCallback, attributeCallback) {
 	if (typeof childCallback !== 'function') throw new Error("Invalid childCallback function");
@@ -288,6 +303,7 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 			if (e === lastElement) return;
 
 			lastElement = e;
+			let lastAttributes = serializeAttributes(e);
 			let promise;
 
 			if (attributeObserver) {
@@ -296,12 +312,19 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 			} else {
 				promise = Promise.all([childCallback(e), attributeCallback(e)]);
 			}
-
+			
 			attributeObserver = new MutationObserver(mutationsList => {
 				mutationsList.forEach(function(mutation) {
-					if (mutation.type === "attributes") attributeCallback(mutation.target);
+					if (mutation.type === "attributes") {
+						const currentAttributes = serializeAttributes(mutation.target);
+						if (currentAttributes !== lastAttributes) {
+							attributeCallback(mutation.target);
+							lastAttributes = serializeAttributes(mutation.target);
+						}
+					}
 				});
-			})
+			});
+
 			attributeObserver.observe(e, { attributes: true });
 			
 			return promise;
@@ -348,7 +371,7 @@ function getPNthChild(root, indices,
 		} else {
 			startPObserver(currentRoot, get, check, async child => {
 				intermediateChildCallback?.(child, currentLevel);
-				setTimeout(() => help(child, remainingIndices.slice(1), currentLevel + 1));
+				setTimeout(() => help(child, remainingIndices.slice(1), currentLevel + 1), 0);
 			}, e => intermediateAttributeCallback?.(e, currentLevel));
 		}
 	}

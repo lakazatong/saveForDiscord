@@ -881,62 +881,34 @@ window.addEventListener('commonLoaded', () => {
 			e.style.position = 'absolute';
 			e.style.top = '0';
 			e.style.left = '0';
-			e.style.width = '0';
-			e.style.height = '0';
+			e.style.height = '100vh';
+			e.style.width = '100vw';
 			e.style.margin = '0';
 			e.style.padding = '0';
 			e.style.border = 'none';
 			e.style.visibility = 'visible';
-			e.style.pointerEvents = 'none';
-		}
-		function rootStyles(e) {
-			e.style.position = 'absolute';
-			e.style.display = 'flex';
-			e.style.flexDirection = 'column';
-			e.style.height = '100vh';
-			e.style.width = '100vw';
 			e.style.overflow = 'hidden';
 		}
-		// startBodyAttributePObserver('div', 'id', 'react-root', reactRoot => {
-		// 	console.log('1 called');
-		// 	getPNthChild(reactRoot, [0, 0, 2], mainParent => {
-		// 		console.log('2 called');
-		// 		getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElm => {
-		// 			console.log('3 called');
-		// 			getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0], primaryColumn => {
-		// 				console.log('4 called');
-		// 				hideAllBut(primaryColumn);
-		// 			}, rootStyles, ignoreStyles);
-		// 		}, ignoreStyles);
-		// 	}, ignoreStyles, ignoreStyles);
-		// }, ignoreStyles);
-
-		getStartAttributePObserver(document.body)('div', 'id', 'react-root', reactRoot => {
-			console.log('new reactRoot', reactRoot);
+		function rootStyles(e) {
+			console.log('attributes of primaryColumn have changed');
+			hideAllBut(e);
+			ignoreStyles(e);
+			e.style.display = 'flex';
+			e.style.flexDirection = 'column';
+		}
+		startBodyAttributePObserver('div', 'id', 'react-root', reactRoot => {
+			console.log('new reactRoot');
 			getPNthChild(reactRoot, [0, 0, 2], mainParent => {
-				console.log('new mainParent', mainParent);
-			}, mainParent => {
-				console.log('attributes of mainParent changed');
-			}, intermediate => {
-				switch (i) {
-				case 0:
-					console.log('first intermediate', intermediate);
-				case 1:
-					console.log('second intermediate', intermediate);
-				default:
-					console.log('impossible case');
-				}
-			}, intermediate => {
-				switch (i) {
-				case 0:
-					console.log('attributes of first intermediate have changed', intermediate);
-				case 1:
-					console.log('attributes of second intermediate have changede', intermediate);
-				default:
-					console.log('impossible case');
-				}
-			});
-		});
+				console.log('new mainParent');
+				getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElm => {
+					console.log('new mainElm');
+					getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0], primaryColumn => {
+						console.log('new primaryColumn');
+					}, rootStyles, ignoreStyles, ignoreStyles);
+				}, ignoreStyles);
+			}, ignoreStyles, ignoreStyles, ignoreStyles);
+		}, ignoreStyles);
+
 		// startObserver(document.body,
 		// 	document.body.querySelector('div[id="react-root"]'),
 		// 	e => e.tagName === 'DIV' && e.id === 'react-root',
