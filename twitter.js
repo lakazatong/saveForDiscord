@@ -9,8 +9,8 @@ window.addEventListener('commonLoaded', () => {
 	const tweets = [];
 	const newTweetsSubscribers = new Map();
 
-	let insertMediaSection = new DeferredFunction();
-	let requestMoreTweets = new DeferredFunction();
+	let insertMediaSection = new window.DeferredFunction();
+	let requestMoreTweets = new window.DeferredFunction();
 	const pending = {
 		_promise: trackPromise(Promise.resolve()),
 		get promise() {
@@ -876,6 +876,7 @@ window.addEventListener('commonLoaded', () => {
 			}
 		}
 		function ignoreStyles(e) {
+			// console.log('ignoreStyles called on ', e);
 			e.style.display = 'contents';
 			e.style.position = 'absolute';
 			e.style.top = '0';
@@ -896,34 +897,42 @@ window.addEventListener('commonLoaded', () => {
 			e.style.width = '100vw';
 			e.style.overflow = 'hidden';
 		}
-		startBodyAttributePObserver('div', 'id', 'react-root', function reactRoot(rr) {
-			console.log('1 called');
-			getPNthChild(rr, [0, 0, 2], function dirThing(dt) {
-				console.log('2 called');
-				// console.log(e);
-				getStartAttributePObserver(dt)('main', 'role', 'main', function main(m) {
-					console.log('3 called');
-					// console.log(e);
-					// getPNthChild(e, 0, e => {
-					// getPNthChild(e, 0, e => {
-					// getPNthChild(e, 0, e => {
-					// getStartAttributePObserver(e)('div', 'data-testid', 'primaryColumn', e => {
-					// getStartAttributePObserver(e)('div', 'aria-label', 'Home timeline', e => {
-					// getPNthChild(e, 2, e => {
-					// getPNthChild(e, 0, e => {
-					// getPNthChild(e, 0, e => {
-					// 	hideAllBut(e);
-					// }, rootStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-					// }, ignoreStyles);
-				}, ignoreStyles);
-			}, ignoreStyles, ignoreStyles);
-		}, ignoreStyles);
+		// startBodyAttributePObserver('div', 'id', 'react-root', reactRoot => {
+		// 	console.log('1 called');
+		// 	getPNthChild(reactRoot, [0, 0, 2], mainParent => {
+		// 		console.log('2 called');
+		// 		getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElm => {
+		// 			console.log('3 called');
+		// 			getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0], primaryColumn => {
+		// 				console.log('4 called');
+		// 				hideAllBut(primaryColumn);
+		// 			}, rootStyles, ignoreStyles);
+		// 		}, ignoreStyles);
+		// 	}, ignoreStyles, ignoreStyles);
+		// }, ignoreStyles);
+
+		getStartAttributePObserver(document.body)('div', 'id', 'react-root', reactRoot => {
+			console.log('new reactRoot', reactRoot);
+			getPNthChild(reactRoot, [0, 0, 2], mainParent => {
+				console.log('new mainParent', mainParent);
+			}, mainParent => {
+				console.log('attributes of mainParent changed');
+			}, intermediate => {
+				console.log('new intermediate', intermediate);
+			}, intermediate => {
+				console.log('attributes of intermediate changed', intermediate);
+			});
+		});
+		// startObserver(document.body,
+		// 	document.body.querySelector('div[id="react-root"]'),
+		// 	e => e.tagName === 'DIV' && e.id === 'react-root',
+		// 	reactRoot => {
+		// 		console.log('got new reactRoot', reactRoot);
+		// 	},
+		// 	reactRoot => {
+		// 		console.log('styles of reactRoot changed', reactRoot);
+		// 	}
+		// );
 	}
 
 	init();
