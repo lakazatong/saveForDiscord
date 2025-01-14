@@ -213,7 +213,7 @@ function getElementsByXPath(doc, xpath) {
 }
 
 function applyToAncestor(element, callback, check) {
-	let current = element;
+	let current = element.parentElement;
 	while (current) {
 		if (check(current)) {
 			callback(current);
@@ -304,6 +304,26 @@ function serializeAttributes(e) {
 		.join('\n\n');
 }
 
+function getAttributeObserver(e, callback) {
+	if (!e || !(e instanceof HTMLElement)) throw new Error('e must be a non null HTMLElement');
+	if (typeof callback !== 'function') throw new Error('callback must be a function');
+	let lastAttributes = serializeAttributes(e);
+	const r = new MutationObserver(mutationsList => {
+		mutationsList.forEach(function(mutation) {
+			if (mutation.type === "attributes") {
+				const currentAttributes = serializeAttributes(mutation.target);
+				if (currentAttributes !== lastAttributes) {
+					callback(mutation.target);
+					lastAttributes = serializeAttributes(mutation.target);
+				}
+			}
+		});
+	});
+	r.observe(e, { attributes: true });
+	callback(e);
+	return r;
+}
+
 function startPObserver(root, get, check, childCallback, attributeCallback) {
 	let lastElement = null;
 	let callback;
@@ -311,12 +331,8 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 		let attributeObserver = null;
 		callback = e => {
 			if (e === lastElement) return;
-
 			lastElement = e;
-			let lastAttributes = serializeAttributes(e);
-
 			let r;
-
 			if (attributeObserver) {
 				attributeObserver.disconnect();
 				r = childCallback?.(e);
@@ -324,21 +340,7 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 				r = childCallback?.(e);
 				attributeCallback(e);
 			}
-			
-			attributeObserver = new MutationObserver(mutationsList => {
-				mutationsList.forEach(function(mutation) {
-					if (mutation.type === "attributes") {
-						const currentAttributes = serializeAttributes(mutation.target);
-						if (currentAttributes !== lastAttributes) {
-							attributeCallback(mutation.target);
-							lastAttributes = serializeAttributes(mutation.target);
-						}
-					}
-				});
-			});
-
-			attributeObserver.observe(e, { attributes: true });
-
+			attributeObserver = getAttributeObserver(e, attributeCallback);
 			return r;
 		};
 	} else {
@@ -379,7 +381,15 @@ function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'cla
 }
 
 function getStartAttributePObserver(root) {
+	if (!root) throw new Error('Invalid root');
+
 	return function (tagName, attributes, childCallback, attributeCallback, selectorPrefix = '', selectorSuffix = '') {
+		
+		if (typeof tagName !== 'string') throw new Error('tagName must be a string');
+		if (typeof attributes !== 'object') throw new Error('attributes must be an object');
+		if (typeof selectorPrefix !== 'string') throw new Error('selectorPrefix must be an string');
+		if (typeof selectorSuffix !== 'string') throw new Error('selectorSuffix must be an string');
+
 		const attributeSelector = Object.entries(attributes)
 			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
 			.join('');
@@ -389,6 +399,46 @@ function getStartAttributePObserver(root) {
 			e => e.tagName === tagName.toUpperCase() && onlyAttributes(e, attributes),
 			childCallback, attributeCallback
 		);
+	};
+}
+
+function getStartAttributePObserverAll(root, finite = false) {
+	if (!root) throw new Error('Invalid root');
+	if (typeof finite !== 'boolean') throw new Error('tagName must be a boolean');
+
+	return function (tagName, attributes, childCallback, attributeCallback, tagAttribute = '', selectorPrefix = '', selectorSuffix = '') {
+
+		if (typeof tagName !== 'string') throw new Error('tagName must be a string');
+		if (typeof attributes !== 'object') throw new Error('attributes must be an object');
+		if (typeof tagAttribute !== 'string') throw new Error('tagAttribute must be an string');
+		if (typeof selectorPrefix !== 'string') throw new Error('selectorPrefix must be an string');
+		if (typeof selectorSuffix !== 'string') throw new Error('selectorSuffix must be an string');
+		
+		tagAttribute = tagAttribute.length ? tagAttribute : `data-${generateUUID()}`;
+		
+		const attributeSelector = Object.entries(attributes)
+			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
+			.join('');
+
+		function get() {
+			return root.querySelector(`${selectorPrefix}${tagName}${attributeSelector}${selectorSuffix}`);
+		}
+
+		function wrap(callback, observeAgain) {
+			return function (e) {
+				callback?.(e);
+				e.setAttribute(tagAttribute, 'true');
+				if (observeAgain && (!finite || get())) observe();
+			}
+		}
+
+		function observe() {
+			startPObserver(root, get, e => e.tagName === tagName.toUpperCase() && onlyAttributes(e, attributes),
+				wrap(childCallback, true), wrap(attributeCallback, false)
+			);
+		}
+
+		observe();
 	};
 }
 

@@ -743,56 +743,40 @@ window.addEventListener('commonLoaded', () => {
 
 		function timelineCallback(timeline) {
 			console.log('new timeline', timeline);
-			const seenTweetsUUID = generateUUID();
-			const seenTweetRowUUID = generateUUID();
-			const startTimelineAttributePObserver = getStartAttributePObserver(timeline);
+			const startTimelineAttributePObserverAll = getStartAttributePObserverAll(timeline);
 			const cellInnerDivAttributes = {'data-testid': 'cellInnerDiv'};
 
-			// modify timeline's tweets
-			function modifyTweets() {
-				// console.log('modifyTweets called');
-				function modifyTweet(tweet) {
-					getPNthChild(tweet, [0, 0], null, tmp => {
-						// where pinned is (for each tweet)
-						getPNthChild(tmp, 0, null, null, softRemove);
-						getPNthChild(tmp, 1,
+			function modifyTweet(tweet) {
+				getPNthChild(tweet, [0, 0], null, tmp => {
+					// where pinned is (for each tweet)
+					getPNthChild(tmp, 0, null, null, softRemove);
+					getPNthChild(tmp, 1, null, tweetTopDiv => {
+						// where the pp is (for each tweet)
+						getPNthChild(tweetTopDiv, 0, null, null, softRemove);
+						// delete tweets with no img
+						getPNthChild(tweetTopDiv, 1,
 							null,
-							tweetTopDiv => {
-								// delete tweets with no img
-								getPNthChild(tweetTopDiv, 1,
-									null,
-									tweetDiv => {
-										if (tweetDiv.children.length !== 3) return;
-										
-										applyToAncestor(tweet, cellInnerDiv => {
-											getStartAttributePObserver(cellInnerDiv.parentElement,
-												cellInnerDivAttributes, null, softRemove
-											);
-										}, e => onlyAttributes(e, cellInnerDivAttributes));
-									}, tweetDiv => tweetDiv.style.padding = '0px'
-								);
-								// where the pp is (for each tweet)
-								getPNthChild(tweetTopDiv, 0, null, null, softRemove);
-							}
+							tweetDiv => {
+								console.log(tweetDiv, tweetDiv.children.length);
+								if (tweetDiv.children.length <= 3)
+									applyToAncestor(tweet,
+										cellInnerDiv => getAttributeObserver(cellInnerDiv, softRemove),
+										e => onlyAttributes(e, cellInnerDivAttributes)
+									);
+							}, tweetDiv => tweetDiv.style.padding = '0px'
 						);
 					});
-
-					setTimeout(modifyTweets, 0);
-				}
-				startTimelineAttributePObserver('article',
-					{
-						'aria-labelledby': null,
-						role: 'article',
-						tabindex: '0',
-						'data-testid': 'tweet'
-					}, modifyTweet, tweet => {
-						tweet.style.padding = '0px';
-						tweet.setAttribute('data-testid', seenTweetsUUID);
-					}
-				);
+				});
 			}
 
-			modifyTweets();
+			startTimelineAttributePObserverAll('article',
+				{
+					'aria-labelledby': null,
+					role: 'article',
+					tabindex: '0',
+					'data-testid': 'tweet'
+				}, modifyTweet, tweet => tweet.style.padding = '0px'
+			);
 
 			if (document.location.href.endsWith('media')) {
 				requestMoreTweets.define(function () {
@@ -801,23 +785,21 @@ window.addEventListener('commonLoaded', () => {
 					// console.log('requestMoreTweets called fr', now - offset);
 					Array.from(timeline.children).forEach(softRemove);
 				});
-
-				function watchNewTweetsRows() {
-					// console.log('watchNewTweetsRows called');
-					startTimelineAttributePObserver('div', cellInnerDivAttributes, tweetRow => {
-						ensureEnoughTweets(Math.max(tweetIndex.value, overviewTweetIndex.value));
-						setTimeout(watchNewTweetsRows, 0);
-					}, tweetRow => tweetRow.setAttribute('data-testid', seenTweetRowUUID));
-				}
-
-				watchNewTweetsRows();
+				startTimelineAttributePObserverAll('div', cellInnerDivAttributes, tweetRow => 
+					ensureEnoughTweets(Math.max(tweetIndex.value, overviewTweetIndex.value))
+				);
 			}
 		}
 
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
 			getPNthChild(primaryColumn, 0, null, null, e => e.style.display = 'none');
-			getPNthChild(primaryColumn, 1, null, null, e => e.style.flex = '0 0 5%');
+			getPNthChild(primaryColumn, 1, null, tmp => {
+				getPNthChild(tmp, 0,
+					e => onlyAttributes(e, {'aria-label': 'Profile timelines', 'aria-live': 'polite', role: 'navigation'}),
+					null, e => e.style.flex = '0 0 5%'
+				);
+			}, ignoreStyles);
 			getStartAttributePObserver(primaryColumn)('section',
 				{'aria-labelledby': null, role: 'region'},
 				section => {
@@ -832,7 +814,19 @@ window.addEventListener('commonLoaded', () => {
 						null, timelineCallback, null,
 						[e => onlyAttributes(e, {'aria-label': null})]
 					);
-				}, section => section.style.visibility = 'hidden',
+				}, section => {
+					if (document.location.href.endsWith('media')) {
+						section.style.visibility = 'hidden';
+					} else {
+						section.style.flex = '1';
+						section.style.minHeight = 'min-content';
+						section.style.flexGrow = '1';
+						section.style.flexShrink = '1';
+						section.style.flexBasis = 'auto';
+						section.style.margin = '0';
+						section.style.padding = '0';
+					}
+				},
 				':scope > '
 			);
 		}

@@ -56,7 +56,7 @@ function reduceForRegex(inputString, targetString) {
 
 			return response;
 		} catch (error) {
-			console.error('fetch(', ...args, '):', error);
+			// console.error('fetch(', ...args, '):', error);
 		}
 	};
 })();
