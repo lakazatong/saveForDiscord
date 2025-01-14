@@ -797,7 +797,10 @@ window.addEventListener('commonLoaded', () => {
 			getPNthChild(primaryColumn, 1, null, tmp => {
 				getPNthChild(tmp, 0,
 					e => onlyAttributes(e, {ariaLabel: 'Profile timelines', ariaLive: 'polite', role: 'navigation'}),
-					null, e => e.style.flex = '0 0 5%'
+					null, e => {
+						e.style.flex = '0 0 5%';
+						e.style.width = '100vw';
+					}
 				);
 			}, ignoreStyles);
 			getStartAttributePObserver(primaryColumn)('section',
@@ -849,6 +852,8 @@ window.addEventListener('commonLoaded', () => {
 				alignItems: 'stretch',
 				width: '100%',
 				height: '100%',
+				margin: '0',
+				padding: '0',
 			});
 		}
 
@@ -893,13 +898,15 @@ window.addEventListener('commonLoaded', () => {
 			);
 		}
 
-		getStartAttributePObserver(document.body)('div', {id: 'react-root'}, reactRootCallback, reactRoot =>
-			overwriteStyles(reactRoot, {
-				position: 'relative',
-				display: 'contents',
-				overflow: 'hidden',
-			})
-		);
+		getStartAttributePObserver(document.body)('div', {id: 'react-root'}, reactRootCallback, ignoreStyles);
+		
+		// bye scrollbars
+		getAttributeObserver(document.body.parentElement, html => overwriteStyles(html, {
+			margin: '0',
+			padding: '0',
+			overflow: 'hidden',
+			height: '100%',
+		}));
 	}
 
 	init();
