@@ -700,12 +700,12 @@ window.addEventListener('commonLoaded', () => {
 	console.log('twitter');
 	window.documentReady = getDocumentReady.bind(document);
 
-	let bodyRef;
 	function init() {
-		if (document.querySelector(`*[id="${window.uuid}"]`)) return;
+		if (document.querySelector(`div[id="twitterInit"]`)) return;
 
 		const marker = document.createElement('div');
-		marker.id = window.uuid;
+		marker.id = 'twitterInit';
+		marker.style.display = 'none';
 		document.body.appendChild(marker);
 
 		window.addEventListener('resize', updateCSS);

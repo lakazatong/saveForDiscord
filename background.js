@@ -155,27 +155,36 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 const redirections = [
 	{
 		regex: /^https:\/\/www\.pixiv\.net\/en\/users\/(\d+)$/,
-		getRedirectUrl: match => `https://www.pixiv.net/en/users/${match[1]}/illustrations`,
+		getRedirectUrl: (tab, match) => `https://www.pixiv.net/en/users/${match[1]}/illustrations`,
 	},
 	{
 		regex: /^https:\/\/x\.com\/(\w+)\/?$/,
-		getRedirectUrl: match => `https://x.com/${match[1]}/media`,
-		blacklist: [/^https:\/\/x\.com\/home\/?/],
+		getRedirectUrl: (tab, match) => `https://x.com/${match[1]}/media`,
+		blacklist: [(tab, match) => /^https:\/\/x\.com\/home/.test(tab.url)],
 	},
 ];
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	if (!tab?.url) return;
 	let match;
 	const redirection = redirections.find(({ regex, blacklist }) => {
-		if (match = regex.exec(tab.url)) return !(blacklist && blacklist.some(blacklistRegex => blacklistRegex.test(tab.url)));
-		return false;
+		match = regex.exec(tab.url);
+		if (!match) return false;
+		return blacklist ? !blacklist.some(callback => callback(tab, match)) : true;
 	});
-
-	if (!redirection) return;
-
-	const newUrl = redirection.getRedirectUrl(match);
-	if (tab?.url !== newUrl) {
-		console.log(`redirecting ${tab?.url} to ${newUrl}`);
-		chrome.tabs.update(tabId, { url: newUrl });
+	if (!redirection) {
+		chrome.storage.local.set({ [tabId.toString()]: tab.url });
+		return;
 	}
+	chrome.storage.local.get([tabId.toString()], result => {
+		const prevUrl = result[tabId.toString()];
+		const newUrl = redirection.getRedirectUrl(tab, match);
+		
+		if (tab.url === newUrl || prevUrl === newUrl) return;
+
+		console.log(`redirecting ${tab.url} to ${newUrl} from ${prevUrl}`);
+		chrome.tabs.update(tabId, { url: newUrl });
+		
+		chrome.storage.local.set({ [tabId.toString()]: newUrl });
+	});
 });
