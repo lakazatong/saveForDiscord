@@ -294,7 +294,6 @@ function serializeAttributes(e) {
 }
 
 function startPObserver(root, get, check, childCallback, attributeCallback) {
-	if (typeof childCallback !== 'function') throw new Error("Invalid childCallback function");
 	let lastElement = null;
 	let callback;
 	if (typeof attributeCallback === 'function') {
@@ -308,9 +307,9 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 
 			if (attributeObserver) {
 				attributeObserver.disconnect();
-				promise = childCallback(e);
+				promise = childCallback?.(e);
 			} else {
-				promise = Promise.all([childCallback(e), attributeCallback(e)]);
+				promise = Promise.all([childCallback?.(e), attributeCallback(e)]);
 			}
 			
 			attributeObserver = new MutationObserver(mutationsList => {
@@ -333,7 +332,7 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 		callback = e => {
 			if (e === lastElement) return;
 			lastElement = e;
-			return childCallback(e);
+			return childCallback?.(e);
 		};
 	}
 	function observe(initialCheck) {

@@ -868,63 +868,90 @@ window.addEventListener('commonLoaded', () => {
 		// startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
 			// primaryColumn.style.border = '0px';
 		// });
-
+		
 		function hideAllBut(targetElement) {
-			const allElements = document.body.getElementsByTagName('*');
-			for (let element of allElements) {
-				if (!targetElement.contains(element) && element !== targetElement) element.style.display = 'none';
-			}
+			Array.from(document.body.getElementsByTagName('*'))
+				.filter(element => !targetElement.contains(element) && element !== targetElement)
+				.forEach(element => element.style.display = 'none');
 		}
+
 		function ignoreStyles(e) {
-			// console.log('ignoreStyles called on ', e);
 			e.style.display = 'contents';
 			e.style.position = 'absolute';
-			e.style.top = '0';
-			e.style.left = '0';
-			e.style.height = '100vh';
-			e.style.width = '100vw';
-			e.style.margin = '0';
-			e.style.padding = '0';
-			e.style.border = 'none';
-			e.style.visibility = 'visible';
-			e.style.overflow = 'hidden';
+		}
+
+		function hasClassOnlyAsAttributes(e) {
+			return onlyAttributes(e, {class: null});
 		}
 
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
+			getPNthChild(primaryColumn, 0, hasClassOnlyAsAttributes, null, e => e.style.display = 'none');
+			getPNthChild(primaryColumn, 1, hasClassOnlyAsAttributes, null, e => e.style.flex = '0 0 5%');
+			getPNthChild(primaryColumn, 2,
+				e => onlyAttributes(e, {'aria-labelledby': 'accessible-list-0', role: 'region', class: null}),
+				null, e => e.style.flex = '1'
+			);
 		}
 
 		function primaryColumnAttributesCallback(primaryColumn) {
 			hideAllBut(primaryColumn);
-			ignoreStyles(primaryColumn);
+			primaryColumn.style.top = '0';
+			primaryColumn.style.left = '0';
+			primaryColumn.style.margin = '0';
+			primaryColumn.style.padding = '0';
+			primaryColumn.style.width = '100vw';
+			primaryColumn.style.maxWidth = '100vw';
+			primaryColumn.style.height = '100vh';
+			primaryColumn.style.maxHeight = '100vh';
+			primaryColumn.style.position = 'absolute';
+
 			primaryColumn.style.display = 'flex';
 			primaryColumn.style.flexDirection = 'column';
+			primaryColumn.style.justifyContent = 'space-between';
+			primaryColumn.style.alignItems = 'stretch';
 		}
 
 		function mainElmCallback(mainElm) {
-			console.log('new mainElm');
-			function isPrimaryColumn(e) {
-				return onlyAttributes(e, {class: null});
+			function tmpCallback(tmp) {
+				getPNthChild(tmp, 1,
+					e => onlyAttributes(e, {class: null, 'data-testid': 'sidebarColumn'}),
+					null, sidebarColumn => sidebarColumn.style.display = 'none'
+				);
+				getPNthChild(tmp, [0, 0, 2, 0, 0],
+					hasClassOnlyAsAttributes, primaryColumnCallback, primaryColumnAttributesCallback,
+					[
+						e => onlyAttributes(e, {class: null, 'data-testid': 'primaryColumn'}),
+						e => onlyAttributes(e, {'aria-label': 'Home timeline', 'tabindex': '0', class: null}),
+						hasClassOnlyAsAttributes,
+						hasClassOnlyAsAttributes
+					],
+					ignoreStyles, ignoreStyles
+				);
 			}
-			getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0],
-				isPrimaryColumn, primaryColumnCallback, primaryColumnAttributesCallback,
-				null, ignoreStyles, ignoreStyles
+			getPNthChild(mainElm, [0, 0, 0],
+				hasClassOnlyAsAttributes, tmpCallback, ignoreStyles,
+				[
+					hasClassOnlyAsAttributes,
+					hasClassOnlyAsAttributes
+				],
+				ignoreStyles, ignoreStyles
 			);
 		}
 
 		function mainParentCallback(mainParent) {
-			console.log('new mainParent');
 			getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElmCallback, ignoreStyles);
 		}
 
 		function reactRootCallback(reactRoot) {
-			console.log('new reactRoot');
-			function isMainParent(e) {
-				return onlyAttributes(e, {dir: 'ltr', class: null, 'data-at-shortcutkeys': null, 'aria-hidden': 'false'});
-			}
 			getPNthChild(reactRoot, [0, 0, 2],
-				isMainParent, mainParentCallback, ignoreStyles,
-				null, ignoreStyles, ignoreStyles
+				e => onlyAttributes(e, {dir: 'ltr', class: null, 'data-at-shortcutkeys': null, 'aria-hidden': 'false'}),
+				mainParentCallback, ignoreStyles,
+				[
+					hasClassOnlyAsAttributes,
+					hasClassOnlyAsAttributes
+				],
+				ignoreStyles, ignoreStyles
 			);
 		}
 
