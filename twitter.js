@@ -668,7 +668,7 @@ window.addEventListener('commonLoaded', () => {
 
 		mediaContainer = document.createElement('div');
 		mediaContainer.id = 'media-container';
-		mediaContainer.classList.add('ignore');
+		mediaContainer.style.flex = '1';
 
 		setupMediaElement();
 
@@ -742,6 +742,8 @@ window.addEventListener('commonLoaded', () => {
 		});
 
 		function timelineCallback(timeline) {
+			console.log('new timeline', timeline);
+			return;
 			const seenUUID = generateUUID();
 			const startTimelineAttributeObserver = getStartAttributeObserver(timeline);
 
@@ -807,91 +809,33 @@ window.addEventListener('commonLoaded', () => {
 			}
 		}
 
-		function actualPrimaryColumnCallback(actualPrimaryColumn) {
-			getPNthChild(actualPrimaryColumn, 0, topActualPrimaryColumn => {
-				// profile banner
-				getPNthChild(topActualPrimaryColumn, 0, null, softRemove);
-				getPNthChild(topActualPrimaryColumn, 1, null, presentation => {
-					presentation.style.margin = presentation.style.padding = '0px';
-				});
-			});
-			// profile pp
-			getPNthChild(actualPrimaryColumn, [0, 1, 0], null, softRemove);
-			function sectionCallback(section) {
-				getPNthChild(section, [1, 0], timelineCallback);
-				if (document.location.href.endsWith('media')) {
-					insertMediaSection.define(function () {
-						if (!actualPrimaryColumn.querySelector('div[id="media-container"]'))
-							actualPrimaryColumn.insertBefore(setupNavigationSystem(), section);
-					});
-				}
-			}
-			const getStartActualPrimaryColumnAttributePObserver = getStartAttributePObserver(actualPrimaryColumn);
-			getStartActualPrimaryColumnAttributePObserver('nav', 'role', 'navigation', null, navbar => {
-				if (document.location.href.endsWith('media')) {
-					navbar.style.zIndex = '0';
-				}
-			});
-			getStartActualPrimaryColumnAttributePObserver('section', 'role', 'region', sectionCallback, section => {
-				if (document.location.href.endsWith('media')) {
-					section.style.visibility = 'hidden';
-				}
-			});
-		}
-
-		function homeTimelineCallback(homeTimeline) {
-			// sticky top back and follow button with tweeter profile's name and posts count
-			// getPNthChild(homeTimeline, 0, null, softRemove);
-			getPNthChild(homeTimeline, [2, 0, 0], actualPrimaryColumnCallback, actualPrimaryColumn => {
-				// actualPrimaryColumn.style.width = actualPrimaryColumn.style.maxWidth = `${getReactRootDims()[0]}px`;
-				
-					
-				makeTargetRoot(actualPrimaryColumn);
-				actualPrimaryColumn.style.display = 'flex';
-				actualPrimaryColumn.style.flexDirection = 'column';
-				actualPrimaryColumn.style.height = '100%';
-				actualPrimaryColumn.style.width = '100%';
-				actualPrimaryColumn.style.overflow = 'hidden';
-			});
-		}
-
-		function primaryColumnCallback(primaryColumn) {
-			getPNthChild(primaryColumn, 0, homeTimelineCallback);
-		}
-
-		// left side column
-		// startBodyAttributePObserver('header', 'role', 'banner', null, softRemove);
-		// right side column
-		// startBodyAttributePObserver('div', 'data-testid', 'sidebarColumn', null, softRemove);
-		// self explainatory
-		// startBodyAttributePObserver('div', 'data-testid', 'DMDrawer', null, softRemove);
-		// startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
-			// primaryColumn.style.border = '0px';
-		// });
-		
-		function hideAllBut(targetElement) {
-			Array.from(document.body.getElementsByTagName('*'))
-				.filter(element => !targetElement.contains(element) && element !== targetElement)
-				.forEach(element => element.style.display = 'none');
-		}
-
-		function ignoreStyles(e) {
-			e.style.display = 'contents';
-			e.style.position = 'absolute';
-		}
-
-		function hasClassOnlyAsAttributes(e) {
-			return onlyAttributes(e, {class: null});
-		}
+		const hasClassOnlyAsAttributes = e => onlyAttributes(e, {class: null});
 
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
 			getPNthChild(primaryColumn, 0, hasClassOnlyAsAttributes, null, e => e.style.display = 'none');
 			getPNthChild(primaryColumn, 1, hasClassOnlyAsAttributes, null, e => e.style.flex = '0 0 5%');
-			getPNthChild(primaryColumn, 2,
-				e => onlyAttributes(e, {'aria-labelledby': 'accessible-list-0', role: 'region', class: null}),
-				null, e => e.style.flex = '1'
+			getStartAttributePObserver(primaryColumn)('section',
+				{'aria-labelledby': 'accessible-list-0', role: 'region', class: null},
+				section => {
+					if (document.location.href.endsWith('media')) {
+						insertMediaSection.define(function () {
+							if (!primaryColumn.querySelector(':scope > div[id="media-container"]'))
+								primaryColumn.insertBefore(setupNavigationSystem(), section);
+						});
+					}
+					getPNthChild(section, [1, 0],
+						null, timelineCallback, e => e.style.visibility = 'hidden',
+						[e => onlyAttributes(e, {'aria-label': null, class: null})]
+					);
+				}
 			);
+		}
+
+		function hideAllBut(targetElement) {
+			Array.from(document.body.getElementsByTagName('*'))
+				.filter(element => !targetElement.contains(element) && element !== targetElement)
+				.forEach(element => element.style.display = 'none');
 		}
 
 		function primaryColumnAttributesCallback(primaryColumn) {
@@ -910,6 +854,11 @@ window.addEventListener('commonLoaded', () => {
 			primaryColumn.style.flexDirection = 'column';
 			primaryColumn.style.justifyContent = 'space-between';
 			primaryColumn.style.alignItems = 'stretch';
+		}
+
+		function ignoreStyles(e) {
+			e.style.display = 'contents';
+			e.style.position = 'absolute';
 		}
 
 		function mainElmCallback(mainElm) {
@@ -940,7 +889,7 @@ window.addEventListener('commonLoaded', () => {
 		}
 
 		function mainParentCallback(mainParent) {
-			getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElmCallback, ignoreStyles);
+			getStartAttributePObserver(mainParent)('main', {role: 'main', class: null}, mainElmCallback, ignoreStyles);
 		}
 
 		function reactRootCallback(reactRoot) {
@@ -955,7 +904,7 @@ window.addEventListener('commonLoaded', () => {
 			);
 		}
 
-		getStartAttributePObserver(document.body)('div', 'id', 'react-root', reactRootCallback, ignoreStyles);
+		getStartAttributePObserver(document.body)('div', {id: 'react-root'}, reactRootCallback, ignoreStyles);
 	}
 
 	init();

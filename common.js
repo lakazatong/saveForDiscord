@@ -358,10 +358,18 @@ function onlyAttributes(e, allowedAttributes) {
 }
 
 function getStartAttributePObserver(root) {
-	return function (tagName, attributeName, attributeValue, childCallback, attributeCallback, selectorSuffix = '') {
+	return function (tagName, attributes, childCallback, attributeCallback, selectorPrefix = '', selectorSuffix = '') {
+		const attributeSelector = Object.entries(attributes)
+			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
+			.join('');
+
+		const attributeCheck = (e) => Object.entries(attributes).every(([key, value]) => 
+			value === null ? e.hasAttribute(key) : e.getAttribute(key) === value
+		);
+
 		startPObserver(root,
-			() => root.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
-			e => e.tagName === tagName.toUpperCase() && e.getAttribute(attributeName) == attributeValue,
+			() => root.querySelector(`${selectorPrefix}${tagName}${attributeSelector}${selectorSuffix}`),
+			e => e.tagName === tagName.toUpperCase() && attributeCheck(e),
 			childCallback, attributeCallback
 		);
 	};
@@ -375,10 +383,18 @@ function getPNthChild(root, indices,
 		const index = remainingIndices[0];
 		const get = () => currentRoot.children[index];
 		if (remainingIndices.length === 1) {
-			const check = e => e === get() && givenCheck(e);
+			const check = e => e === get() && 
+				(typeof givenCheck === 'function'
+					? givenCheck(e)
+					: true
+				);
 			startPObserver(currentRoot, get, check, childCallback, attributeCallback);
 		} else {
-			const check = e => e === get() && (intermediateGivenChecks?.[currentLevel](e) || true);
+			const check = e => e === get() &&
+				(typeof intermediateGivenChecks?.[currentLevel] === 'function'
+					? intermediateGivenChecks[currentLevel](e)
+					: true
+				);
 			startPObserver(currentRoot, get, check, async child => {
 				intermediateChildCallback?.(child, currentLevel);
 				setTimeout(() => help(child, remainingIndices.slice(1), currentLevel + 1), 0);
