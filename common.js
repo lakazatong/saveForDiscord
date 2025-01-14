@@ -212,6 +212,17 @@ function getElementsByXPath(doc, xpath) {
 	return result;
 }
 
+function applyToAncestor(element, callback, check) {
+	let current = element;
+	while (current) {
+		if (check(current)) {
+			callback(current);
+			break;
+		}
+		current = current.parentElement;
+	}
+}
+
 function getTraverse(check, callback) {
 	function traverse(node) {
 		if (check(node)) return callback(node);
@@ -303,13 +314,15 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 
 			lastElement = e;
 			let lastAttributes = serializeAttributes(e);
-			let promise;
+
+			let r;
 
 			if (attributeObserver) {
 				attributeObserver.disconnect();
-				promise = childCallback?.(e);
+				r = childCallback?.(e);
 			} else {
-				promise = Promise.all([childCallback?.(e), attributeCallback(e)]);
+				r = childCallback?.(e);
+				attributeCallback(e);
 			}
 			
 			attributeObserver = new MutationObserver(mutationsList => {
@@ -325,8 +338,8 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 			});
 
 			attributeObserver.observe(e, { attributes: true });
-			
-			return promise;
+
+			return r;
 		};
 	} else {
 		callback = e => {
@@ -347,14 +360,22 @@ function getStartPObserver(root) {
 	};
 }
 
-function onlyAttributes(e, allowedAttributes) {
+function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'class']) {
+	const ignoredSet = new Set(ignoredAttributes);
+
+	for (let attr of ignoredSet) {
+		if (allowedAttributes.hasOwnProperty(attr)) {
+			throw new Error(`Attribute "${attr}" cannot be both allowed and ignored.`);
+		}
+	}
+
 	for (let [attrName, allowedValue] of Object.entries(allowedAttributes)) {
 		const v = e.getAttribute(attrName);
 		if (v === null) return false;
 		if (allowedValue && allowedValue !== v) return false;
 	}
 
-	return e.attributes.length === Object.keys(allowedAttributes).length;
+	return e.attributes.length - [...e.attributes].filter(attr => ignoredSet.has(attr.name)).length === Object.keys(allowedAttributes).length;
 }
 
 function getStartAttributePObserver(root) {
@@ -363,13 +384,9 @@ function getStartAttributePObserver(root) {
 			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
 			.join('');
 
-		const attributeCheck = (e) => Object.entries(attributes).every(([key, value]) => 
-			value === null ? e.hasAttribute(key) : e.getAttribute(key) === value
-		);
-
 		startPObserver(root,
 			() => root.querySelector(`${selectorPrefix}${tagName}${attributeSelector}${selectorSuffix}`),
-			e => e.tagName === tagName.toUpperCase() && attributeCheck(e),
+			e => e.tagName === tagName.toUpperCase() && onlyAttributes(e, attributes),
 			childCallback, attributeCallback
 		);
 	};

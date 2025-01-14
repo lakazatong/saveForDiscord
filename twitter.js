@@ -743,45 +743,53 @@ window.addEventListener('commonLoaded', () => {
 
 		function timelineCallback(timeline) {
 			console.log('new timeline', timeline);
-			return;
-			const seenUUID = generateUUID();
-			const startTimelineAttributeObserver = getStartAttributeObserver(timeline);
+			const seenTweetsUUID = generateUUID();
+			const seenTweetRowUUID = generateUUID();
+			const startTimelineAttributePObserver = getStartAttributePObserver(timeline);
+			const cellInnerDivAttributes = {'data-testid': 'cellInnerDiv'};
 
 			// modify timeline's tweets
 			function modifyTweets() {
 				// console.log('modifyTweets called');
-				startTimelineAttributeObserver('article', 'data-testid', 'tweet', tweet => {
-					getNthChild(tweet, [0, 0, 1], tweetTopDiv => {
-						// delete tweets with no img
-						getNthChild(tweetTopDiv, 1, tweetDiv => {
-							if (tweetDiv.children.length === 3) {
-								let parent = tweet;
-								while (parent) {
-									if (parent.getAttribute('data-testid') === 'cellInnerDiv') {
-										// console.log(`deleted tweet:`, parent);
-										softRemove(parent);
-										break;
-									}
-									parent = parent.parentElement;
-								}
+				function modifyTweet(tweet) {
+					getPNthChild(tweet, [0, 0], null, tmp => {
+						// where pinned is (for each tweet)
+						getPNthChild(tmp, 0, null, null, softRemove);
+						getPNthChild(tmp, 1,
+							null,
+							tweetTopDiv => {
+								// delete tweets with no img
+								getPNthChild(tweetTopDiv, 1,
+									null,
+									tweetDiv => {
+										if (tweetDiv.children.length !== 3) return;
+										
+										applyToAncestor(tweet, cellInnerDiv => {
+											getStartAttributePObserver(cellInnerDiv.parentElement,
+												cellInnerDivAttributes, null, softRemove
+											);
+										}, e => onlyAttributes(e, cellInnerDivAttributes));
+									}, tweetDiv => tweetDiv.style.padding = '0px'
+								);
+								// where the pp is (for each tweet)
+								getPNthChild(tweetTopDiv, 0, null, null, softRemove);
 							}
-							else {
-								tweetDiv.style.padding = '0px';
-							}
-						});
-						// where the pp is (for each tweet)
-						getNthChild(tweetTopDiv, 0, softRemove);
+						);
 					});
 
-					tweet.style.padding = '0px';
-
-					// where pinned is (for each tweet)
-					getNthChild(tweet, [0, 0, 0], softRemove);
-
-					tweet.setAttribute('data-testid', seenUUID);
-
 					setTimeout(modifyTweets, 0);
-				});
+				}
+				startTimelineAttributePObserver('article',
+					{
+						'aria-labelledby': null,
+						role: 'article',
+						tabindex: '0',
+						'data-testid': 'tweet'
+					}, modifyTweet, tweet => {
+						tweet.style.padding = '0px';
+						tweet.setAttribute('data-testid', seenTweetsUUID);
+					}
+				);
 			}
 
 			modifyTweets();
@@ -796,28 +804,24 @@ window.addEventListener('commonLoaded', () => {
 
 				function watchNewTweetsRows() {
 					// console.log('watchNewTweetsRows called');
-					startTimelineAttributeObserver('div', 'data-testid', 'cellInnerDiv', tweetRow => {
+					startTimelineAttributePObserver('div', cellInnerDivAttributes, tweetRow => {
 						ensureEnoughTweets(Math.max(tweetIndex.value, overviewTweetIndex.value));
-
-						tweetRow.setAttribute('data-testid', seenUUID);
-
 						setTimeout(watchNewTweetsRows, 0);
-					});
+					}, tweetRow => tweetRow.setAttribute('data-testid', seenTweetRowUUID));
 				}
 
 				watchNewTweetsRows();
 			}
 		}
 
-		const hasClassOnlyAsAttributes = e => onlyAttributes(e, {class: null});
-
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
-			getPNthChild(primaryColumn, 0, hasClassOnlyAsAttributes, null, e => e.style.display = 'none');
-			getPNthChild(primaryColumn, 1, hasClassOnlyAsAttributes, null, e => e.style.flex = '0 0 5%');
+			getPNthChild(primaryColumn, 0, null, null, e => e.style.display = 'none');
+			getPNthChild(primaryColumn, 1, null, null, e => e.style.flex = '0 0 5%');
 			getStartAttributePObserver(primaryColumn)('section',
-				{'aria-labelledby': 'accessible-list-0', role: 'region', class: null},
+				{'aria-labelledby': null, role: 'region'},
 				section => {
+					console.log('new section', section);
 					if (document.location.href.endsWith('media')) {
 						insertMediaSection.define(function () {
 							if (!primaryColumn.querySelector(':scope > div[id="media-container"]'))
@@ -825,10 +829,11 @@ window.addEventListener('commonLoaded', () => {
 						});
 					}
 					getPNthChild(section, [1, 0],
-						null, timelineCallback, e => e.style.visibility = 'hidden',
-						[e => onlyAttributes(e, {'aria-label': null, class: null})]
+						null, timelineCallback, null,
+						[e => onlyAttributes(e, {'aria-label': null})]
 					);
-				}
+				}, section => section.style.visibility = 'hidden',
+				':scope > '
 			);
 		}
 
@@ -862,45 +867,38 @@ window.addEventListener('commonLoaded', () => {
 		}
 
 		function mainElmCallback(mainElm) {
+			console.log('new mainElm', mainElm);
 			function tmpCallback(tmp) {
 				getPNthChild(tmp, 1,
-					e => onlyAttributes(e, {class: null, 'data-testid': 'sidebarColumn'}),
+					e => onlyAttributes(e, {'data-testid': 'sidebarColumn'}),
 					null, sidebarColumn => sidebarColumn.style.display = 'none'
 				);
 				getPNthChild(tmp, [0, 0, 2, 0, 0],
-					hasClassOnlyAsAttributes, primaryColumnCallback, primaryColumnAttributesCallback,
+					null, primaryColumnCallback, primaryColumnAttributesCallback,
 					[
-						e => onlyAttributes(e, {class: null, 'data-testid': 'primaryColumn'}),
-						e => onlyAttributes(e, {'aria-label': 'Home timeline', 'tabindex': '0', class: null}),
-						hasClassOnlyAsAttributes,
-						hasClassOnlyAsAttributes
+						e => onlyAttributes(e, {'data-testid': 'primaryColumn'}),
+						e => onlyAttributes(e, {'aria-label': 'Home timeline', 'tabindex': '0'})
 					],
 					ignoreStyles, ignoreStyles
 				);
 			}
 			getPNthChild(mainElm, [0, 0, 0],
-				hasClassOnlyAsAttributes, tmpCallback, ignoreStyles,
-				[
-					hasClassOnlyAsAttributes,
-					hasClassOnlyAsAttributes
-				],
-				ignoreStyles, ignoreStyles
+				null, tmpCallback, ignoreStyles,
+				null, ignoreStyles, ignoreStyles
 			);
 		}
 
 		function mainParentCallback(mainParent) {
-			getStartAttributePObserver(mainParent)('main', {role: 'main', class: null}, mainElmCallback, ignoreStyles);
+			console.log('new mainParent', mainParent);
+			getStartAttributePObserver(mainParent)('main', {role: 'main'}, mainElmCallback, ignoreStyles, ':scope > ');
 		}
 
 		function reactRootCallback(reactRoot) {
+			console.log('new reactRoot', reactRoot);
 			getPNthChild(reactRoot, [0, 0, 2],
-				e => onlyAttributes(e, {dir: 'ltr', class: null, 'data-at-shortcutkeys': null, 'aria-hidden': 'false'}),
+				e => onlyAttributes(e, {dir: 'ltr', 'data-at-shortcutkeys': null, 'aria-hidden': 'false'}),
 				mainParentCallback, ignoreStyles,
-				[
-					hasClassOnlyAsAttributes,
-					hasClassOnlyAsAttributes
-				],
-				ignoreStyles, ignoreStyles
+				null, ignoreStyles, ignoreStyles
 			);
 		}
 
