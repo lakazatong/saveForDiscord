@@ -744,7 +744,7 @@ window.addEventListener('commonLoaded', () => {
 		function timelineCallback(timeline) {
 			console.log('new timeline', timeline);
 			const startTimelineAttributePObserverAll = getStartAttributePObserverAll(timeline);
-			const cellInnerDivAttributes = {'data-testid': 'cellInnerDiv'};
+			const cellInnerDivAttributes = {dataTestid: 'cellInnerDiv'};
 
 			function modifyTweet(tweet) {
 				getPNthChild(tweet, [0, 0], null, tmp => {
@@ -771,10 +771,10 @@ window.addEventListener('commonLoaded', () => {
 
 			startTimelineAttributePObserverAll('article',
 				{
-					'aria-labelledby': null,
+					ariaLabelledby: null,
 					role: 'article',
 					tabindex: '0',
-					'data-testid': 'tweet'
+					dataTestid: 'tweet'
 				}, modifyTweet, tweet => tweet.style.padding = '0px'
 			);
 
@@ -793,15 +793,15 @@ window.addEventListener('commonLoaded', () => {
 
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
-			getPNthChild(primaryColumn, 0, null, null, e => e.style.display = 'none');
+			getPNthChild(primaryColumn, 0, null, null, softRemove);
 			getPNthChild(primaryColumn, 1, null, tmp => {
 				getPNthChild(tmp, 0,
-					e => onlyAttributes(e, {'aria-label': 'Profile timelines', 'aria-live': 'polite', role: 'navigation'}),
+					e => onlyAttributes(e, {ariaLabel: 'Profile timelines', ariaLive: 'polite', role: 'navigation'}),
 					null, e => e.style.flex = '0 0 5%'
 				);
 			}, ignoreStyles);
 			getStartAttributePObserver(primaryColumn)('section',
-				{'aria-labelledby': null, role: 'region'},
+				{ariaLabelledby: null, role: 'region'},
 				section => {
 					console.log('new section', section);
 					if (document.location.href.endsWith('media')) {
@@ -810,23 +810,25 @@ window.addEventListener('commonLoaded', () => {
 								primaryColumn.insertBefore(setupNavigationSystem(), section);
 						});
 					}
+					getStartAttributePObserver(section)('h1',
+						{dir: 'auto', ariaLevel: '1', role: 'heading', id: 'accessible-list-0'},
+						null, softRemove, ':scope > '
+					);
 					getPNthChild(section, [1, 0],
 						null, timelineCallback, null,
-						[e => onlyAttributes(e, {'aria-label': null})]
+						[e => onlyAttributes(e, {'aria-label': null})], null, ignoreStyles
 					);
-				}, section => {
-					if (document.location.href.endsWith('media')) {
-						section.style.visibility = 'hidden';
-					} else {
-						section.style.flex = '1';
-						section.style.minHeight = 'min-content';
-						section.style.flexGrow = '1';
-						section.style.flexShrink = '1';
-						section.style.flexBasis = 'auto';
-						section.style.margin = '0';
-						section.style.padding = '0';
+				}, section => overwriteStyles(section, document.location.href.endsWith('media')
+					? {
+						visibility: 'hidden',
 					}
-				},
+					: {
+						flex: '1',
+						flexGrow: '1',
+						flexShrink: '1',
+						flexBasis: 'auto',
+					}
+				),
 				':scope > '
 			);
 		}
@@ -834,44 +836,39 @@ window.addEventListener('commonLoaded', () => {
 		function hideAllBut(targetElement) {
 			Array.from(document.body.getElementsByTagName('*'))
 				.filter(element => !targetElement.contains(element) && element !== targetElement)
-				.forEach(element => element.style.display = 'none');
+				.forEach(element => overwriteStyles(element, { display: 'none' }));
 		}
 
 		function primaryColumnAttributesCallback(primaryColumn) {
 			hideAllBut(primaryColumn);
-			primaryColumn.style.top = '0';
-			primaryColumn.style.left = '0';
-			primaryColumn.style.margin = '0';
-			primaryColumn.style.padding = '0';
-			primaryColumn.style.width = '100vw';
-			primaryColumn.style.maxWidth = '100vw';
-			primaryColumn.style.height = '100vh';
-			primaryColumn.style.maxHeight = '100vh';
-			primaryColumn.style.position = 'absolute';
-
-			primaryColumn.style.display = 'flex';
-			primaryColumn.style.flexDirection = 'column';
-			primaryColumn.style.justifyContent = 'space-between';
-			primaryColumn.style.alignItems = 'stretch';
+			overwriteStyles(primaryColumn, {
+				position: 'relative',
+				display: 'flex',
+				flexDirection: 'column',
+				justifyContent: 'space-between',
+				alignItems: 'stretch',
+				width: '100%',
+				height: '100%',
+			});
 		}
 
 		function ignoreStyles(e) {
-			e.style.display = 'contents';
-			e.style.position = 'absolute';
+			overwriteStyles(e, {
+				display: 'contents',
+				position: 'absolute',
+			});
 		}
 
 		function mainElmCallback(mainElm) {
 			console.log('new mainElm', mainElm);
 			function tmpCallback(tmp) {
-				getPNthChild(tmp, 1,
-					e => onlyAttributes(e, {'data-testid': 'sidebarColumn'}),
-					null, sidebarColumn => sidebarColumn.style.display = 'none'
-				);
+				getPNthChild(tmp, 1, e => onlyAttributes(e, {dataTestid: 'sidebarColumn'}), null, softRemove);
 				getPNthChild(tmp, [0, 0, 2, 0, 0],
-					null, primaryColumnCallback, primaryColumnAttributesCallback,
+					e => onlyAttributes(e, { class: null }, ['style']),
+					primaryColumnCallback, primaryColumnAttributesCallback,
 					[
-						e => onlyAttributes(e, {'data-testid': 'primaryColumn'}),
-						e => onlyAttributes(e, {'aria-label': 'Home timeline', 'tabindex': '0'})
+						e => onlyAttributes(e, {dataTestid: 'primaryColumn'}),
+						e => onlyAttributes(e, {ariaLabel: 'Home timeline', tabindex: '0'})
 					],
 					ignoreStyles, ignoreStyles
 				);
@@ -890,13 +887,19 @@ window.addEventListener('commonLoaded', () => {
 		function reactRootCallback(reactRoot) {
 			console.log('new reactRoot', reactRoot);
 			getPNthChild(reactRoot, [0, 0, 2],
-				e => onlyAttributes(e, {dir: 'ltr', 'data-at-shortcutkeys': null, 'aria-hidden': 'false'}),
+				e => onlyAttributes(e, {dir: 'ltr', dataAtShortcutkeys: null, ariaHidden: 'false'}),
 				mainParentCallback, ignoreStyles,
 				null, ignoreStyles, ignoreStyles
 			);
 		}
 
-		getStartAttributePObserver(document.body)('div', {id: 'react-root'}, reactRootCallback, ignoreStyles);
+		getStartAttributePObserver(document.body)('div', {id: 'react-root'}, reactRootCallback, reactRoot =>
+			overwriteStyles(reactRoot, {
+				position: 'relative',
+				display: 'contents',
+				overflow: 'hidden',
+			})
+		);
 	}
 
 	init();

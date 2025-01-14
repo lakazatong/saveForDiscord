@@ -177,8 +177,7 @@ function getDocumentReady() {
 window.documentReady ??= getDocumentReady.bind(document);
 
 function softRemove(e) {
-	if (!e) return;
-	e.style.display = 'none';
+	if (e) overwriteStyles(e, { display: 'none' });
 }
 
 function persistentSoftRemove(element) {
@@ -221,6 +220,16 @@ function applyToAncestor(element, callback, check) {
 		}
 		current = current.parentElement;
 	}
+}
+
+function camelToCssStyle(key) {
+	return key.replace(/([A-Z])/g, '-$1').toLowerCase();
+}
+
+function overwriteStyles(element, styles) {
+	element.style.cssText = Object.keys(styles).reduce((acc, key) => {
+		return acc + `${camelToCssStyle(key)}: ${styles[key]}; `;
+	}, '').trim();
 }
 
 function getTraverse(check, callback) {
@@ -362,8 +371,9 @@ function getStartPObserver(root) {
 	};
 }
 
+// ignore means we don't even consider if the element has these attributes or not
 function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'class']) {
-	const ignoredSet = new Set(ignoredAttributes);
+	const ignoredSet = new Set((ignoredAttributes || []).map(camelToCssStyle));
 
 	for (let attr of ignoredSet) {
 		if (allowedAttributes.hasOwnProperty(attr)) {
@@ -372,7 +382,7 @@ function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'cla
 	}
 
 	for (let [attrName, allowedValue] of Object.entries(allowedAttributes)) {
-		const v = e.getAttribute(attrName);
+		const v = e.getAttribute(camelToCssStyle(attrName));
 		if (v === null) return false;
 		if (allowedValue && allowedValue !== v) return false;
 	}
@@ -391,8 +401,10 @@ function getStartAttributePObserver(root) {
 		if (typeof selectorSuffix !== 'string') throw new Error('selectorSuffix must be an string');
 
 		const attributeSelector = Object.entries(attributes)
-			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
+			.map(([key, value]) => value === null ? `[${camelToCssStyle(key)}]` : `[${camelToCssStyle(key)}="${value}"]`)
 			.join('');
+
+		console.log(`${selectorPrefix}${tagName}${attributeSelector}${selectorSuffix}`);
 
 		startPObserver(root,
 			() => root.querySelector(`${selectorPrefix}${tagName}${attributeSelector}${selectorSuffix}`),
@@ -417,7 +429,7 @@ function getStartAttributePObserverAll(root, finite = false) {
 		tagAttribute = tagAttribute.length ? tagAttribute : `data-${generateUUID()}`;
 		
 		const attributeSelector = Object.entries(attributes)
-			.map(([key, value]) => value === null ? `[${key}]` : `[${key}="${value}"]`)
+			.map(([key, value]) => value === null ? `[${camelToCssStyle(key)}]` : `[${camelToCssStyle(key)}="${value}"]`)
 			.join('');
 
 		function get() {
