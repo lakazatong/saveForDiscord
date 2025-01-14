@@ -290,7 +290,7 @@ function serializeAttributes(e) {
 	return Array.from(e.attributes)
 		.sort((a, b) => a.name.localeCompare(b.name))
 		.map(attr => `${attr.name} = ${attr.value}`)
-		.join('\n');
+		.join('\n\n');
 }
 
 function startPObserver(root, get, check, childCallback, attributeCallback) {
@@ -348,27 +348,38 @@ function getStartPObserver(root) {
 	};
 }
 
+function onlyAttributes(e, allowedAttributes) {
+	for (let [attrName, allowedValue] of Object.entries(allowedAttributes)) {
+		const v = e.getAttribute(attrName);
+		if (v === null) return false;
+		if (allowedValue && allowedValue !== v) return false;
+	}
+
+	return e.attributes.length === Object.keys(allowedAttributes).length;
+}
+
 function getStartAttributePObserver(root) {
 	return function (tagName, attributeName, attributeValue, childCallback, attributeCallback, selectorSuffix = '') {
 		startPObserver(root,
 			() => root.querySelector(`${tagName}[${attributeName}="${attributeValue}"] ${selectorSuffix}`),
-			e => e.tagName === tagName.toUpperCase() && e.getAttribute(attributeName) === attributeValue,
+			e => e.tagName === tagName.toUpperCase() && e.getAttribute(attributeName) == attributeValue,
 			childCallback, attributeCallback
 		);
 	};
 }
 
 function getPNthChild(root, indices,
-	childCallback, attributeCallback,
-	intermediateChildCallback = null, intermediateAttributeCallback = null) {
+	givenCheck, childCallback, attributeCallback,
+	intermediateGivenChecks = null, intermediateChildCallback = null, intermediateAttributeCallback = null) {
 	if (!Array.isArray(indices)) indices = [indices];
 	function help(currentRoot, remainingIndices, currentLevel = 0) {
 		const index = remainingIndices[0];
 		const get = () => currentRoot.children[index];
-		const check = e => e === get();
 		if (remainingIndices.length === 1) {
+			const check = e => e === get() && givenCheck(e);
 			startPObserver(currentRoot, get, check, childCallback, attributeCallback);
 		} else {
+			const check = e => e === get() && (intermediateGivenChecks?.[currentLevel](e) || true);
 			startPObserver(currentRoot, get, check, async child => {
 				intermediateChildCallback?.(child, currentLevel);
 				setTimeout(() => help(child, remainingIndices.slice(1), currentLevel + 1), 0);

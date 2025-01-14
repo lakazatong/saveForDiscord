@@ -859,7 +859,6 @@ window.addEventListener('commonLoaded', () => {
 			getPNthChild(primaryColumn, 0, homeTimelineCallback);
 		}
 
-		const startBodyAttributePObserver = getStartAttributePObserver(document.body);
 		// left side column
 		// startBodyAttributePObserver('header', 'role', 'banner', null, softRemove);
 		// right side column
@@ -869,6 +868,7 @@ window.addEventListener('commonLoaded', () => {
 		// startBodyAttributePObserver('div', 'data-testid', 'primaryColumn', primaryColumnCallback, primaryColumn => {
 			// primaryColumn.style.border = '0px';
 		// });
+
 		function hideAllBut(targetElement) {
 			const allElements = document.body.getElementsByTagName('*');
 			for (let element of allElements) {
@@ -889,38 +889,46 @@ window.addEventListener('commonLoaded', () => {
 			e.style.visibility = 'visible';
 			e.style.overflow = 'hidden';
 		}
-		function rootStyles(e) {
-			console.log('attributes of primaryColumn have changed\n', serializeAttributes(e));
-			if (e.getAttribute('role') === 'progressbar') return;
-			hideAllBut(e);
-			ignoreStyles(e);
-			e.style.display = 'flex';
-			e.style.flexDirection = 'column';
-		}
-		startBodyAttributePObserver('div', 'id', 'react-root', reactRoot => {
-			console.log('new reactRoot');
-			getPNthChild(reactRoot, [0, 0, 2], mainParent => {
-				console.log('new mainParent');
-				getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElm => {
-					console.log('new mainElm');
-					getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0], primaryColumn => {
-						console.log('new primaryColumn', primaryColumn);
-						if (primaryColumn.getAttribute('role') === 'progressbar') return;
-					}, rootStyles, ignoreStyles, ignoreStyles);
-				}, ignoreStyles);
-			}, ignoreStyles, ignoreStyles, ignoreStyles);
-		}, ignoreStyles);
 
-		// startObserver(document.body,
-		// 	document.body.querySelector('div[id="react-root"]'),
-		// 	e => e.tagName === 'DIV' && e.id === 'react-root',
-		// 	reactRoot => {
-		// 		console.log('got new reactRoot', reactRoot);
-		// 	},
-		// 	reactRoot => {
-		// 		console.log('styles of reactRoot changed', reactRoot);
-		// 	}
-		// );
+		function primaryColumnCallback(primaryColumn) {
+			console.log('new primaryColumn', primaryColumn);
+		}
+
+		function primaryColumnAttributesCallback(primaryColumn) {
+			hideAllBut(primaryColumn);
+			ignoreStyles(primaryColumn);
+			primaryColumn.style.display = 'flex';
+			primaryColumn.style.flexDirection = 'column';
+		}
+
+		function mainElmCallback(mainElm) {
+			console.log('new mainElm');
+			function isPrimaryColumn(e) {
+				return onlyAttributes(e, {class: null});
+			}
+			getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0],
+				isPrimaryColumn, primaryColumnCallback, primaryColumnAttributesCallback,
+				null, ignoreStyles, ignoreStyles
+			);
+		}
+
+		function mainParentCallback(mainParent) {
+			console.log('new mainParent');
+			getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElmCallback, ignoreStyles);
+		}
+
+		function reactRootCallback(reactRoot) {
+			console.log('new reactRoot');
+			function isMainParent(e) {
+				return onlyAttributes(e, {dir: 'ltr', class: null, 'data-at-shortcutkeys': null, 'aria-hidden': 'false'});
+			}
+			getPNthChild(reactRoot, [0, 0, 2],
+				isMainParent, mainParentCallback, ignoreStyles,
+				null, ignoreStyles, ignoreStyles
+			);
+		}
+
+		getStartAttributePObserver(document.body)('div', 'id', 'react-root', reactRootCallback, ignoreStyles);
 	}
 
 	init();
