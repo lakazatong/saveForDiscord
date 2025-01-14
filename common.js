@@ -227,7 +227,6 @@ function startObserver(root, get, givenCheck, callback, initialCheck) {
 		if (!(root instanceof HTMLElement)) return reject(new Error("Invalid root element"));
 
 		let observer;
-		let firstMatch;
 		let resolved = false;
 
 		function check(e) {
@@ -235,51 +234,52 @@ function startObserver(root, get, givenCheck, callback, initialCheck) {
 		}
 
 		function done(e) {
+			if (resolved) return;
 			if (observer) {
 				observer.disconnect();
 				observer = null;
-				firstMatch = e;
 			}
+			resolve(callback(e));
+			resolved = true;
 		}
 
 		const traverse = getTraverse(check, done);
 
-		try {
-			observer = new MutationObserver(async mutationsList => {
-				for (const mutation of mutationsList) {
-					for (const node of mutation.addedNodes) traverse(node);
-					if (firstMatch && !resolved) {
-						resolved = true;
-						return resolve(await callback(firstMatch));
+		function initialCheckFunction(doubleCheck) {
+			return new Promise(resolve => {
+				setTimeout(async () => {
+					let e = await get();
+					if (check(e)) {
+						done(e);
+						return resolve();
+					} else if (doubleCheck) {
+						e = Array.from(document.querySelectorAll('*')).find(node => check(node));
+						if (e) {
+							done(e);
+							return resolve();
+						}
 					}
-				}
-				if (initialCheck) {
-					initialCheck = false;
-					setTimeout(async () => {
-						if (typeof get !== "function") throw new Error("Invalid get function");
-						let e = await get();
-						if (!e) {
-							e = Array.from(document.querySelectorAll('*')).find(node => check(node));
-							if (e) {
-								console.log('Found element by checking the entire DOM:', e);
-							} else {
-								console.log('No matching element found in the entire DOM.');
-							}
-						}
-						if (!check(e)) return;
-						if (observer) {
-							observer.disconnect();
-							observer = null;
-						}
-						if (!resolved) {
-							resolved = true;
-							return resolve(await callback(e));
-						}
-					}, 0);
-				}
+					return resolve();
+				}, 0);
 			});
+		}
 
-			observer.observe(root, { subtree: true, childList: true });
+		try {
+			(async () => {
+				observer = new MutationObserver(async mutationsList => {
+					if (initialCheck) {
+						initialCheck = false;
+						await initialCheckFunction(true);
+					}
+					for (const mutation of mutationsList) {
+						for (const node of mutation.addedNodes) traverse(node);
+					}
+				});
+
+				if (initialCheck) await initialCheckFunction(false);
+
+				if (!resolved) observer.observe(root, { subtree: true, childList: true });
+			})();
 		} catch (error) {
 			reject(error);
 		}
@@ -289,9 +289,9 @@ function startObserver(root, get, givenCheck, callback, initialCheck) {
 function serializeAttributes(e) {
 	return Array.from(e.attributes)
 		.sort((a, b) => a.name.localeCompare(b.name))
-		.map(attr => `${attr.name}${attr.value}`)
-		.join('');
-};
+		.map(attr => `${attr.name} = ${attr.value}`)
+		.join('\n');
+}
 
 function startPObserver(root, get, check, childCallback, attributeCallback) {
 	if (typeof childCallback !== 'function') throw new Error("Invalid childCallback function");

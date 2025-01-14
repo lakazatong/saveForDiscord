@@ -890,7 +890,8 @@ window.addEventListener('commonLoaded', () => {
 			e.style.overflow = 'hidden';
 		}
 		function rootStyles(e) {
-			console.log('attributes of primaryColumn have changed');
+			console.log('attributes of primaryColumn have changed\n', serializeAttributes(e));
+			if (e.getAttribute('role') === 'progressbar') return;
 			hideAllBut(e);
 			ignoreStyles(e);
 			e.style.display = 'flex';
@@ -903,7 +904,8 @@ window.addEventListener('commonLoaded', () => {
 				getStartAttributePObserver(mainParent)('main', 'role', 'main', mainElm => {
 					console.log('new mainElm');
 					getPNthChild(mainElm, [0, 0, 0, 0, 0, 2, 0, 0], primaryColumn => {
-						console.log('new primaryColumn');
+						console.log('new primaryColumn', primaryColumn);
+						if (primaryColumn.getAttribute('role') === 'progressbar') return;
 					}, rootStyles, ignoreStyles, ignoreStyles);
 				}, ignoreStyles);
 			}, ignoreStyles, ignoreStyles, ignoreStyles);
