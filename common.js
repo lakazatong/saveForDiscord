@@ -180,11 +180,6 @@ function softRemove(e) {
 	if (e) overwriteStyles(e, { display: 'none' });
 }
 
-function persistentSoftRemove(element) {
-	if (!element) return;
-	observeElementChanges(element, softRemove);
-}
-
 function updateCSSProperty(currentProperty, key, value) {
 	currentProperty = currentProperty || '';
 	const regex = new RegExp(`${key}\\([^)]*\\)`, 'g');
@@ -242,6 +237,36 @@ function getTraverse(check, callback) {
 	return traverse;
 }
 
+function serializeAttributes(e) {
+	return Array.from(e.attributes)
+		.sort((a, b) => a.name.localeCompare(b.name))
+		.map(attr => `${attr.name} = ${attr.value}`)
+		.join('\n\n');
+}
+
+// ignore means we don't even consider if the element has these attributes or not
+function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'class']) {
+	const ignoredSet = new Set((ignoredAttributes || []).map(camelToCssStyle));
+
+	for (let attr of ignoredSet) {
+		if (allowedAttributes.hasOwnProperty(attr)) {
+			throw new Error(`Attribute "${attr}" cannot be both allowed and ignored.`);
+		}
+	}
+
+	for (let [attrName, allowedValue] of Object.entries(allowedAttributes)) {
+		const v = e.getAttribute(camelToCssStyle(attrName));
+		if (v === null) return false;
+		if (allowedValue && allowedValue !== v) return false;
+	}
+
+	return e.attributes.length - [...e.attributes].filter(attr => ignoredSet.has(attr.name)).length === Object.keys(allowedAttributes).length;
+}
+
+// Observers utilities
+
+// calls the callback whenever the element given by get is there if initialCheck
+// otherwise whenever available, checking with the givenCheck function starting from the root
 function startObserver(root, get, givenCheck, callback, initialCheck) {
 	return new Promise((resolve, reject) => {
 		if (!(root instanceof HTMLElement)) return reject(new Error("Invalid root element"));
@@ -306,13 +331,7 @@ function startObserver(root, get, givenCheck, callback, initialCheck) {
 	});
 }
 
-function serializeAttributes(e) {
-	return Array.from(e.attributes)
-		.sort((a, b) => a.name.localeCompare(b.name))
-		.map(attr => `${attr.name} = ${attr.value}`)
-		.join('\n\n');
-}
-
+// starts an attribute observer on the given element and returns it
 function getAttributeObserver(e, callback) {
 	if (!e || !(e instanceof HTMLElement)) throw new Error('e must be a non null HTMLElement');
 	if (typeof callback !== 'function') throw new Error('callback must be a function');
@@ -333,6 +352,9 @@ function getAttributeObserver(e, callback) {
 	return r;
 }
 
+// wrapper around startObserver
+// both callbacks are called whenever a new reference of the object described by check is found
+// and calls attributeCallback whenever the current element's attributes have changed
 function startPObserver(root, get, check, childCallback, attributeCallback) {
 	let lastElement = null;
 	let callback;
@@ -365,31 +387,15 @@ function startPObserver(root, get, check, childCallback, attributeCallback) {
 	observe(true);
 }
 
+// simple wrapper around startPObserver for the same root
 function getStartPObserver(root) {
 	return function (get, check, childCallback, attributeCallback) {
 		startPObserver(root, get, check, childCallback, attributeCallback);
 	};
 }
 
-// ignore means we don't even consider if the element has these attributes or not
-function onlyAttributes(e, allowedAttributes, ignoredAttributes = ['style', 'class']) {
-	const ignoredSet = new Set((ignoredAttributes || []).map(camelToCssStyle));
-
-	for (let attr of ignoredSet) {
-		if (allowedAttributes.hasOwnProperty(attr)) {
-			throw new Error(`Attribute "${attr}" cannot be both allowed and ignored.`);
-		}
-	}
-
-	for (let [attrName, allowedValue] of Object.entries(allowedAttributes)) {
-		const v = e.getAttribute(camelToCssStyle(attrName));
-		if (v === null) return false;
-		if (allowedValue && allowedValue !== v) return false;
-	}
-
-	return e.attributes.length - [...e.attributes].filter(attr => ignoredSet.has(attr.name)).length === Object.keys(allowedAttributes).length;
-}
-
+// common use case of startPObserver wrapped here
+// it generates the get and check methods given a tagName and some attributes to check against using onlyAttributes
 function getStartAttributePObserver(root) {
 	if (!root) throw new Error('Invalid root');
 
@@ -414,6 +420,10 @@ function getStartAttributePObserver(root) {
 	};
 }
 
+// another common use case of startPObserver
+// this time it will tag elements it finds and calls itself again, excluding the marked elements
+// for time when we want to execute some logic on all elements with the given tagName and attributes
+// this also setup a permanent attribute observer on each of them with the given attributeCallback
 function getStartAttributePObserverAll(root, finite = false) {
 	if (!root) throw new Error('Invalid root');
 	if (typeof finite !== 'boolean') throw new Error('tagName must be a boolean');
@@ -483,22 +493,7 @@ function getPNthChild(root, indices,
 	help(root, indices);
 }
 
-function observeElementChanges(element, callback) {
-	if (!element) return;
-
-	const observer = new MutationObserver(() => callback(element));
-
-	observer.observe(element, {
-		subtree: true,
-		childList: true,
-		attributes: true,
-		characterData: true,
-	});
-
-	callback(element);
-
-	return () => observer.disconnect();
-}
+// TODO: get rid of this
 
 function startObserverOnInterval(rootGetter, refGetter, refSetter, intervalGetter, intervalSetter, get, check, callback, cooldown) {
 	function wrappedCallback(tmp) {
