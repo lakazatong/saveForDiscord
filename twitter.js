@@ -668,7 +668,8 @@ window.addEventListener('commonLoaded', () => {
 
 		mediaContainer = document.createElement('div');
 		mediaContainer.id = 'media-container';
-		mediaContainer.style.flex = '1';
+		mediaContainer.style.flex = '0 0 100vh';
+		mediaContainer.style.width = '100vw';
 
 		setupMediaElement();
 
@@ -793,16 +794,19 @@ window.addEventListener('commonLoaded', () => {
 
 		function primaryColumnCallback(primaryColumn) {
 			console.log('new primaryColumn', primaryColumn);
-			getPNthChild(primaryColumn, 0, null, null, softRemove);
-			getPNthChild(primaryColumn, 1, null, tmp => {
-				getPNthChild(tmp, 0,
-					e => onlyAttributes(e, {ariaLabel: 'Profile timelines', ariaLive: 'polite', role: 'navigation'}),
-					null, e => {
-						e.style.flex = '0 0 5%';
-						e.style.width = '100vw';
-					}
-				);
-			}, ignoreStyles);
+			getPNthChild(primaryColumn, 0, e => onlyAttributes(e, {class: null}, ['style']),
+				null, softRemove
+			);
+			getPNthChild(primaryColumn, [1, 0],
+				e => onlyAttributes(e, {ariaLabel: 'Profile timelines', ariaLive: 'polite', role: 'navigation'}),
+				null, e => {
+					e.style.width = '100vw';
+					e.style.flex = '0 0 5vh';
+				},
+				[
+					e => onlyAttributes(e, {class: null}, ['style'])
+				], null, ignoreStyles
+			);
 			getStartAttributePObserver(primaryColumn)('section',
 				{ariaLabelledby: null, role: 'region'},
 				section => {
@@ -823,13 +827,11 @@ window.addEventListener('commonLoaded', () => {
 					);
 				}, section => overwriteStyles(section, document.location.href.endsWith('media')
 					? {
-						visibility: 'hidden',
+						marginTop:' 100vh',
 					}
 					: {
+						width: '100vw',
 						flex: '1',
-						flexGrow: '1',
-						flexShrink: '1',
-						flexBasis: 'auto',
 					}
 				),
 				':scope > '
@@ -848,10 +850,8 @@ window.addEventListener('commonLoaded', () => {
 				position: 'relative',
 				display: 'flex',
 				flexDirection: 'column',
-				justifyContent: 'space-between',
-				alignItems: 'stretch',
-				width: '100%',
-				height: '100%',
+				width: '100vw',
+				height: document.location.href.endsWith('media') ? '100vh' : 'auto',
 				margin: '0',
 				padding: '0',
 			});
